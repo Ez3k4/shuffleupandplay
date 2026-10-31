@@ -101,7 +101,7 @@ function renderPlayer(options: {
 
   const playerDetails = `
     ${renderPlayerHeader({ player, isCurrentPlayer })}
-    ${renderZoneSummary(player)}
+    ${renderZoneSummary(player, isCurrentPlayer)}
 
     <div class="player-zones">
       <div class="hand-zone">
@@ -156,17 +156,58 @@ function renderPlayerHeader(options: { player: PublicPlayer; isCurrentPlayer: bo
 </header>`
 }
 
-function renderZoneSummary(player: PublicPlayer): string {
+
+function renderZoneSummary(
+  player: PublicPlayer,
+  isCurrentPlayer: boolean
+): string {
   const zones = ["library", "hand", "graveyard", "exile"] as const
+
   const counts = zones
     .map((zone) => {
       const label = zone[0]?.toUpperCase() + zone.slice(1)
-      return `<span data-zone-count="${zone}" data-zone-label="${label}" data-count="${player[zone].length}">${label} ${player[zone].length}</span>`
+
+      return `<span
+        data-zone-count="${zone}"
+        data-zone-label="${label}"
+        data-count="${player[zone].length}"
+      >${label} ${player[zone].length}</span>`
     })
     .join("")
 
-  return `<div class="zone-summary"><span>Deck: ${escapeHtml(player.deckName ?? "not loaded")}</span>${counts}</div>`
+  const actions =
+    isCurrentPlayer && player.deckName
+      ? `<div class="zone-summary-actions">
+          ${actionButton({
+            action: { type: "drawCard", count: 1 },
+            label: "Draw"
+          })}
+          ${actionButton({
+            action: { type: "shuffleLibrary" },
+            label: "Shuffle"
+          })}
+          ${actionButton({
+            action: { type: "untapAll" },
+            label: "Untap all"
+          })}
+          ${actionButton({
+            action: { type: "openDeckSearch" },
+            label: "Search library"
+          })}
+        </div>`
+      : ""
+
+  return `
+    <div class="zone-summary">
+      <div class="zone-summary-info">
+        <span>Deck: ${escapeHtml(player.deckName ?? "not loaded")}</span>
+        ${counts}
+      </div>
+      ${actions}
+    </div>
+  `
 }
+
 
 function renderHand(player: PublicPlayer): string {
   const cards = [...player.hand]
@@ -338,15 +379,6 @@ function renderPlayerControls(context: ComponentRenderContext): string {
           <span>Library ${player.library.length} cards</span>
           <span>Hand ${player.hand.length} · Graveyard ${player.graveyard.length} · Exile ${player.exile.length}</span>
         </p>
-      </div>
-      <div class="controls-block">
-        <h4>Card actions</h4>
-        <div class="button-row">
-          ${actionButton({ action: { type: "drawCard", count: 1 }, label: "Draw" })}
-          ${actionButton({ action: { type: "shuffleLibrary" }, label: "Shuffle" })}
-          ${actionButton({ action: { type: "untapAll" }, label: "Untap all" })}
-          ${actionButton({ action: { type: "openDeckSearch" }, label: "Search library" })}
-        </div>
       </div>
       <div class="controls-block">
         <h4>Counter token</h4>

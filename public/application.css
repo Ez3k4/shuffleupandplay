@@ -1621,3 +1621,46 @@ button:disabled,
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+
+
+
+/* ===== Zone summary with card actions ===== */
+
+.zone-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0.5rem 0.85rem;
+}
+
+.zone-summary-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.zone-summary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+
+.zone-summary-actions button {
+  padding: 0.4rem 0.65rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  border-radius: 7px;
+}
+
+@media (max-width: 900px) {
+  .zone-summary-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+}
