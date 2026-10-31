@@ -335,25 +335,56 @@ export function gamePage(options: {
   data-worker-url="${attribute(ASSET_URLS["table-worker.js"])}"
   data-components="${jsonAttribute(declarations)}"
 >
-  <section class="topbar-live-meta panel">
-    <div class="table-title-row">
-      <h1>${escapeHtml(room.name)}</h1>
-      <div class="table-title-actions">
-        <button type="button" class="share-link-button" data-copy-text="${attribute(options.shareUrl)}">Copy invite link</button>
-        <button type="button" class="help-button" data-open-help aria-haspopup="dialog">Help</button>
+
+  <div class="tabletop-tools">
+
+    <details class="topbar-live-meta panel tabletop-toggle">
+      <summary>Game information</summary>
+
+      <div class="live-meta-content">
+        <div class="table-title-row">
+          <h1>${escapeHtml(room.name)}</h1>
+          <div class="table-title-actions">
+            <button
+              type="button"
+              class="share-link-button"
+              data-copy-text="${attribute(options.shareUrl)}"
+            >Copy invite link</button>
+
+            <button
+              type="button"
+              class="help-button"
+              data-open-help
+              aria-haspopup="dialog"
+            >Help</button>
+          </div>
+        </div>
+
+        <div class="status-grid">
+          <p class="table-code">
+            Table code <strong>${escapeHtml(options.roomCode)}</strong>
+          </p>
+          <p>You are seat ${options.seat}</p>
+          ${connectionStatus()}
+        </div>
       </div>
-    </div>
-    <div class="status-grid">
-      <p class="table-code">Table code <strong>${escapeHtml(options.roomCode)}</strong></p>
-      <p>You are seat ${options.seat}</p>
-      ${connectionStatus()}
-    </div>
-  </section>
+    </details>
+
+    <details class="panel tabletop-toggle">
+      <summary>Deck settings &amp; counters</summary>
+
+      ${componentSlot({
+        name: "playerControls",
+        key: options.seat,
+        context
+      })}
+    </details>
+
+  </div>
 
   ${componentSlot({ name: "tableStatus", context })}
 
   <div class="board-layout">
-    ${componentSlot({ name: "playerControls", key: options.seat, context })}
     <section class="main-table panel">
       <div id="players-area">
         ${componentSlot({ name: "player", key: opponentSeat, context })}
@@ -361,6 +392,7 @@ export function gamePage(options: {
       </div>
     </section>
   </div>
+
 
   ${componentSlot({ name: "librarySearch", key: options.seat, context })}
   ${componentSlot({ name: "gameResult", context })}

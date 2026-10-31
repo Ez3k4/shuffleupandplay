@@ -1664,3 +1664,88 @@ button:disabled,
     margin-left: 0;
   }
 }
+
+
+
+/* ===== Collapsible tabletop panels ===== */
+
+.tabletop-tools {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  align-items: start;
+}
+
+/* Override the original flex layout */
+.topbar-live-meta.tabletop-toggle {
+  display: block;
+  padding: 0;
+}
+
+.tabletop-toggle {
+  min-width: 0;
+}
+
+/* Clickable heading */
+.tabletop-toggle > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  list-style: none;
+  color: #f0e4cc;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.tabletop-toggle > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Arrow indicator */
+.tabletop-toggle > summary::after {
+  content: "▾";
+  color: var(--accent);
+  font-size: 1.1rem;
+  transition: transform 150ms ease;
+}
+
+.tabletop-toggle[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+.tabletop-toggle[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+
+/* Game information content */
+.live-meta-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+/* Avoid double borders from the existing player controls */
+.tabletop-toggle > [data-component-target] > .left-rail.panel {
+  border: none;
+  border-radius: 0 0 12px 12px;
+  box-shadow: none;
+  background: transparent;
+  animation: none;
+}
+
+/* Fit both panels on smaller screens */
+@media (max-width: 760px) {
+  .tabletop-tools {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .live-meta-content {
+    flex-direction: column;
+  }
+}
