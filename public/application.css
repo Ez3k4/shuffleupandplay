@@ -1539,3 +1539,85 @@ button:disabled,
     height: 300px;
   }
 }
+
+
+
+/* ===== Three-column card zone layout ===== */
+
+.player-zones {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 0.6rem;
+  padding: 0.65rem;
+  align-items: stretch;
+}
+
+/* Hand area: 60% of available width */
+.player-zones .hand-zone {
+  min-width: 0;
+  border: 1px solid rgba(196, 170, 121, 0.22);
+  border-radius: 10px;
+  padding: 0.5rem;
+  background: rgba(13, 19, 30, 0.86);
+}
+
+.hand-zone-label {
+  display: block;
+  margin-bottom: 0.4rem;
+  color: #cdbf9f;
+  font-size: 0.78rem;
+}
+
+/* Graveyard + exile share remaining 40% */
+.player-zones .zone-lanes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  padding: 0;
+}
+
+.player-zones .zone-lane {
+  min-width: 0;
+}
+
+/* Horizontal scrolling for large hands */
+.player-zones .hand-strip {
+  min-height: 0;
+  overflow-x: auto;
+  padding: 0.3rem;
+}
+
+/* Keep individual hand cards at a useful size */
+.player-zones .hand-card {
+  flex: 0 0 110px;
+  min-width: 110px;
+  max-width: 110px;
+}
+
+/* Prevent long graveyards from expanding the layout */
+.player-zones .zone-lane-cards {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.opponent-hand-hidden {
+  color: #a99e88;
+  font-size: 0.85rem;
+}
+
+/* Responsive layout */
+@media (max-width: 900px) {
+  .player-zones {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .player-zones .zone-lanes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .player-zones .zone-lanes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -78,12 +78,17 @@ function playerAt(options: { room: PublicRoom | null; seat: number }): PublicPla
 }
 
 
+
 function renderPlayer(options: {
   context: ComponentRenderContext
   seat: number
 }): string {
   const { context, seat } = options
-  const player = playerAt({ room: context.payload.space, seat })
+  const player = playerAt({
+    room: context.payload.space,
+    seat,
+  })
+
   if (!player) return ""
 
   const isCurrentPlayer =
@@ -97,7 +102,23 @@ function renderPlayer(options: {
   const playerDetails = `
     ${renderPlayerHeader({ player, isCurrentPlayer })}
     ${renderZoneSummary(player)}
-    ${renderZoneLanes({ player, isCurrentPlayer })}
+
+    <div class="player-zones">
+      <div class="hand-zone">
+        <span class="hand-zone-label">
+          Hand (${player.hand.length})
+        </span>
+        ${
+          isCurrentPlayer
+            ? renderHand(player)
+            : `<p class="opponent-hand-hidden">
+                 Opponent's hand is hidden
+               </p>`
+        }
+      </div>
+
+      ${renderZoneLanes({ player, isCurrentPlayer })}
+    </div>
   `
 
   return `
@@ -110,12 +131,11 @@ function renderPlayer(options: {
 
       ${renderBattlefield({ player, isCurrentPlayer })}
 
-      ${isCurrentPlayer
-        ? `${playerDetails}${renderHand(player)}`
-        : ""}
+      ${isCurrentPlayer ? playerDetails : ""}
     </section>
   `
 }
+
 
 
 function renderPlayerHeader(options: { player: PublicPlayer; isCurrentPlayer: boolean }): string {
