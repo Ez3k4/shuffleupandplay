@@ -2388,3 +2388,81 @@ dialog.zone-inspector {
     gap: 0.3rem;
   }
 }
+
+
+/* ===== Card preview above search windows ===== */
+
+.card-hover-preview {
+  z-index: 10000;
+}
+
+/* Allow previews to extend outside native dialogs */
+dialog.zone-inspector,
+dialog.library-peek-dialog {
+  overflow: visible;
+}
+
+
+/* ===== Library card right-click menu ===== */
+
+.library-card-context {
+  position: fixed;
+  z-index: 11000;
+
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+
+  width: 210px;
+  padding: 0.5rem;
+
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+
+  background: #1a2529;
+  color: var(--text);
+
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.65);
+}
+
+.library-card-context[hidden] {
+  display: none !important;
+}
+
+.library-card-context-title {
+  padding: 0.35rem 0.4rem 0.5rem;
+  color: #f3e7d0;
+  font-size: 0.85rem;
+  font-weight: 600;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  border-bottom: 1px solid var(--line);
+}
+
+.library-card-context button {
+  display: block;
+  width: 100%;
+
+  padding: 0.55rem 0.65rem;
+  border: none;
+  border-radius: 6px;
+
+  background: transparent;
+  color: #f0e8d4;
+  text-align: left;
+  font-size: 0.85rem;
+
+  cursor: pointer;
+}
+
+.library-card-context button:hover {
+  background: rgba(196, 156, 75, 0.22);
+}
+
+/* Make library peek cards indicate interaction */
+.library-peek-results .library-peek-card {
+  cursor: context-menu;
+}

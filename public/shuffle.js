@@ -121,6 +121,7 @@ function start(game) {
   wireTooltips()
   wireCardTools(game)
   wireLibraryPeek(game)
+  wireLibraryCardTools(game)
 }
 
 async function startMirror({ actorId, seat, currentPlayerId, workerUrl }) {
@@ -765,26 +766,68 @@ async function loadDeck(actorId, deckId) {
   setConnectionState(response.ok ? "Loading the deck…" : "The deck could not be requested")
 }
 
-function wireCardPreview() {
-  const show = (event) => {
-    const element = event.target.closest?.("[data-preview-image]")
-    const preview = document.getElementById("card-hover-preview")
-    if (!element || !preview) return
 
-    const image = document.getElementById("card-hover-preview-image")
-    const name = document.getElementById("card-hover-preview-name")
-    image.src = element.dataset.previewImage
-    image.alt = element.dataset.previewName ?? "Card preview"
-    name.textContent = element.dataset.previewName ?? ""
+function wireCardPreview() {
+  const preview = document.getElementById("card-hover-preview")
+  if (!preview) return
+
+  const image = document.getElementById("card-hover-preview-image")
+  const name = document.getElementById("card-hover-preview-name")
+
+  function hide() {
+    preview.classList.remove("is-visible")
+  }
+
+  function show(event) {
+    const card = event.target.closest?.("[data-preview-image]")
+    if (!card) return
+
+    // Modal dialogs are in the browser's top layer.
+    // Move the preview inside the active dialog.
+    const dialog = card.closest("dialog[open]")
+    const host = dialog ?? document.body
+
+    if (preview.parentElement !== host) {
+      host.appendChild(preview)
+    }
+
+    image.src = card.dataset.previewImage
+    image.alt = card.dataset.previewName ?? "Card preview"
+    name.textContent = card.dataset.previewName ?? ""
+
     preview.classList.add("is-visible")
   }
-  const hide = () => document.getElementById("card-hover-preview")?.classList.remove("is-visible")
 
   document.addEventListener("mouseover", show)
   document.addEventListener("focusin", show)
-  document.addEventListener("mouseout", hide)
-  document.addEventListener("focusout", hide)
+
+  document.addEventListener("mouseout", (event) => {
+    const card = event.target.closest?.("[data-preview-image]")
+    if (!card) return
+
+    if (event.relatedTarget && card.contains(event.relatedTarget)) {
+      return
+    }
+
+    hide()
+  })
+
+  document.addEventListener("focusout", (event) => {
+    if (event.target.closest?.("[data-preview-image]")) {
+      hide()
+    }
+  })
+
+  // Restore the preview to the normal document when
+  // a library, graveyard or exile dialog closes.
+  document.addEventListener("close", (event) => {
+    if (event.target.matches("dialog")) {
+      hide()
+      document.body.appendChild(preview)
+    }
+  }, true)
 }
+
 
 function wireLibraryFilter() {
   document.addEventListener("input", (event) => {
@@ -1137,6 +1180,149 @@ function wireLibraryPeek(game) {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) {
       dialog.close()
+    }
+  })
+}
+
+
+function wireLibraryCardTools(game) {
+  const menu = document.createElement("div")
+  menu.className = "library-card-context"
+  menu.hidden = true
+
+  menu.innerHTML = `
+    <div class="library-card-context-title"></div>
+
+    <button type="button" data-library-move="hand">
+      🖐️ Move to hand
+    </button>
+
+    <button type="button" data-library-move="battlefield">
+      ⚔️ Move to battlefield
+    </button>
+
+    <button type="button" data-library-move="graveyard">
+      🪦 Move to graveyard
+    </button>
+
+    <button type="button" data-library-move="exile">
+      ✨ Move to exile
+    </button>
+  `
+
+  document.body.appendChild(menu)
+
+  let selectedInstanceId = null
+
+  function closeMenu() {
+    menu.hidden = true
+    selectedInstanceId = null
+  }
+
+  document.addEventListener("contextmenu", (event) => {
+    const card = event.target.closest?.(
+      ".library-peek-card, .library-search-item"
+    )
+
+    if (!card) {
+      closeMenu()
+      return
+    }
+
+    const peekDialog = card.closest(".library-peek-dialog")
+    const searchModal = card.closest(".library-search-modal-card")
+
+    if (!peekDialog && !searchModal) return
+
+    // Peek cards have their ID directly on the element.
+    let instanceId = card.dataset.instanceId
+
+    // Ordinary library search cards already contain
+    // a moveLibraryCardToHand action with their ID.
+    if (!instanceId && searchModal) {
+      try {
+        const action = JSON.parse(card.dataset.gameAction ?? "{}")
+
+        if (action.type === "moveLibraryCardToHand") {
+          instanceId = action.instanceId
+        }
+      } catch {
+        return
+      }
+    }
+
+    if (!instanceId) return
+
+    event.preventDefault()
+
+    selectedInstanceId = instanceId
+
+    menu.querySelector(".library-card-context-title")
+      .textContent = card.dataset.previewName ?? "Card actions"
+
+    // Keep the menu inside native modal dialogs.
+    // Otherwise it can remain in document.body.
+    const host = peekDialog ?? document.body
+    host.appendChild(menu)
+
+    menu.hidden = false
+
+    const width = menu.getBoundingClientRect().width
+    const height = menu.getBoundingClientRect().height
+
+    menu.style.left = `${
+      Math.max(8, Math.min(event.clientX, window.innerWidth - width - 8))
+    }px`
+
+    menu.style.top = `${
+      Math.max(8, Math.min(event.clientY, window.innerHeight - height - 8))
+    }px`
+  })
+
+  menu.addEventListener("click", async (event) => {
+    const button = event.target.closest?.("[data-library-move]")
+
+    if (!button || !selectedInstanceId) return
+
+    event.preventDefault()
+    event.stopPropagation()
+
+    const destination = button.dataset.libraryMove
+    const instanceId = selectedInstanceId
+    const dialog = menu.closest("dialog")
+
+    closeMenu()
+
+    const action = {
+      type: "moveCardZone",
+      instanceId,
+      from: "library",
+      to: destination,
+      ...(destination === "battlefield"
+        ? { x: 48, y: 48 }
+        : {})
+    }
+
+    const accepted = await sendAction(
+      game.dataset.tableCode,
+      action
+    )
+
+    // Close peek after a successful card move.
+    if (accepted && dialog?.open) {
+      dialog.close()
+    }
+  })
+
+  document.addEventListener("pointerdown", (event) => {
+    if (!menu.hidden && !menu.contains(event.target)) {
+      closeMenu()
+    }
+  })
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeMenu()
     }
   })
 }

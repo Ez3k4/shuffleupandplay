@@ -454,11 +454,12 @@ function renderZoneLanes(options: { player: PublicPlayer; isCurrentPlayer: boole
   const peekCards = options.isCurrentPlayer
     ? options.player.library
         .map((card, index) => `
-          <div
-            class="library-peek-card"
-            data-library-position="${index + 1}"
-            ${previewAttributes(card)}
-          >
+            <div
+              class="library-peek-card"
+              data-library-position="${index + 1}"
+              data-instance-id="${attribute(card.instanceId)}"
+              ${previewAttributes(card)}
+            >
             ${cardFace(card)}
           </div>
         `)
