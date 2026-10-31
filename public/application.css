@@ -2328,3 +2328,57 @@ dialog.library-peek-dialog {
 .library-peek-results .library-peek-card {
   cursor: context-menu;
 }
+
+/* ===== Stage 1: Arena-style hand preview =====
+   The hand shows its card titles at rest. Hovering or keyboard-focusing
+   raises a card into the full-height row already occupied by the piles.
+   This deliberately does not change server-rendered actions or drag logic.
+*/
+#players-area .your-seat .player-zones {
+  --hand-peek-height: 48px;
+  --hand-rise: -88px;
+  align-items: flex-end;
+}
+
+#players-area .your-seat .player-zones .hand-zone {
+  height: var(--hand-peek-height);
+  min-height: 0;
+  overflow: visible;
+}
+
+#players-area .your-seat .player-zones .hand-strip {
+  height: var(--hand-peek-height);
+  min-height: 0;
+  overflow: visible;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+#players-area .your-seat .player-zones .hand-card {
+  position: relative;
+  flex: 0 1 var(--zone-card-width);
+  width: var(--zone-card-width);
+  min-width: 26px;
+  max-width: var(--zone-card-width);
+  transform: translateY(0);
+  transition: transform 180ms ease, border-color 180ms ease;
+}
+
+#players-area .your-seat .player-zones .hand-card:hover,
+#players-area .your-seat .player-zones .hand-card:focus-visible {
+  z-index: 50;
+  transform: translateY(var(--hand-rise));
+}
+
+@media (max-width: 700px) {
+  #players-area .your-seat .player-zones {
+    --hand-peek-height: 34px;
+    --hand-rise: -61px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #players-area .your-seat .player-zones .hand-card {
+    transition: none;
+  }
+}
