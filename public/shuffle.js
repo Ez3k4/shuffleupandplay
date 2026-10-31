@@ -113,7 +113,9 @@ function start(game) {
   })
 
   wireActions(game, actorId)
+  wireStage9Mulligan(actorId)
   wireLandStackTap(actorId)
+  wireStage8cCardMenu()
   wireStage8Attachments(actorId)
   wireDeckForms(game, actorId)
   wireCardPreview()
@@ -460,6 +462,8 @@ function newGestureKey() {
 let drag = null
 
 function beginDrag(event, game) {
+  // Stage 8C fix: a menu click must not initiate a battlefield drag.
+  if (event.target.closest?.(".card-tools")) return
   // Land stacks are fixed UI objects; their copy is selected by clicking.
   if (event.target.closest?.(".stage7-land-zone")) return
   if (event.button !== 0) return
@@ -495,6 +499,9 @@ function beginDrag(event, game) {
     kind: "card",
     element: card,
     instanceId: card.dataset.instanceId,
+    stage8bManual: event.shiftKey,
+    stage8bStartLeft: card.style.left,
+    stage8bStartTop: card.style.top,
     startLeft: card.offsetLeft,
     startTop: card.offsetTop,
     canvas,
@@ -529,6 +536,7 @@ function moveDrag(event) {
   const position = positionFor({ held: drag, event })
   drag.element.style.left = `${position.left}px`
   drag.element.style.top = `${position.top}px`
+  stage8bMove(event)
 }
 
 function positionFor(options) {
@@ -606,6 +614,8 @@ function finishDrag(event, actorId) {
     })
   }
 
+  if (stage8bDrop(current, event, actorId)) return
+
   const position = positionFor({ held: current, event })
 
   if (current.kind === "counter") {
@@ -638,6 +648,7 @@ function finishDrag(event, actorId) {
 }
 
 function cancelDrag() {
+  stage8bReset()
   drag?.element?.classList.remove("is-dragging")
   removeCounterGhost()
   drag = null
@@ -1612,5 +1623,283 @@ function wireStage8Attachments(actorId) {
   }, true)
   document.addEventListener('keydown', (event) => {
     if (sourceId && event.key === 'Escape') clearSelection()
+  })
+}
+
+
+// ===== Stage 8C: detached floating card menu =====
+// The card's real .card-tools element stays inside the card in the DOM,
+// preserving Stage 8A's closest('.battlefield-card') action handling.
+// A popover renders it in the browser top layer, away from overflow clipping.
+function wireStage8cCardMenu() {
+  let openTools = null
+
+  function close() {
+    if (openTools) {
+      try { if (openTools.matches(':popover-open')) openTools.hidePopover() } catch {}
+      openTools.closest('.battlefield-card')?.classList.remove('card-tools-open')
+    }
+    openTools = null
+  }
+
+  function isZoneAction(button) {
+    try {
+      const action = JSON.parse(button.dataset.gameAction ?? '{}')
+      return action.type === 'moveCardZone' || action.type === 'moveToDeck'
+    } catch { return false }
+  }
+
+  function readableLabel(button) {
+    const actionLabel = button.getAttribute('aria-label') ||
+      button.dataset.tooltip || button.getAttribute('title') || ''
+    try {
+      const action = JSON.parse(button.dataset.gameAction ?? '{}')
+      if (action.type === 'moveCardZone') {
+        return ({hand: 'Move to hand', graveyard: 'Move to graveyard',
+          exile: 'Move to exile', battlefield: 'Move to battlefield'})[action.to] || actionLabel
+      }
+      if (action.type === 'moveToDeck') return 'Move to library'
+      if (action.type === 'addCounter') return 'Add counter'
+    } catch {}
+    return actionLabel || button.textContent.trim()
+  }
+
+  function decorate(tools, card) {
+    if (tools.dataset.stage8cDecorated === 'true') {
+      const title = tools.querySelector(':scope > .stage8c-menu-title')
+      if (title) title.textContent = card.dataset.previewName || 'Card actions'
+      return
+    }
+    tools.dataset.stage8cDecorated = 'true'
+    const title = document.createElement('div')
+    title.className = 'stage8c-menu-title'
+    title.textContent = card.dataset.previewName || 'Card actions'
+    tools.prepend(title)
+
+    // Preserve original buttons and data-game-action attributes. We only
+    // move existing zone-action buttons into an expandable submenu.
+    const zoneButtons = [...tools.children].filter(
+      (el) => el.tagName === 'BUTTON' && isZoneAction(el)
+    )
+    for (const button of tools.querySelectorAll(':scope > button')) {
+      if (button.querySelector('.stage8c-menu-label')) continue
+      const label = document.createElement('span')
+      label.className = 'stage8c-menu-label'
+      label.textContent = readableLabel(button)
+      button.append(label)
+    }
+    if (zoneButtons.length) {
+      const group = document.createElement('details')
+      group.className = 'stage8c-menu-group'
+      const summary = document.createElement('summary')
+      summary.textContent = 'Move to another zone'
+      group.append(summary)
+      const inner = document.createElement('div')
+      inner.className = 'stage8c-menu-subactions'
+      for (const button of zoneButtons) inner.append(button)
+      group.append(inner)
+      tools.append(group)
+    }
+  }
+
+  // Capture before the existing contextmenu listener. A zero-delay task
+  // runs after bubbling (microtasks can fire between event listeners).
+  document.addEventListener('contextmenu', (event) => {
+    const card = event.target.closest?.('.your-seat .battlefield-card')
+    if (!card) { window.setTimeout(close, 0); return }
+    const x = event.clientX
+    const y = event.clientY
+    window.setTimeout(() => {
+      if (!card.isConnected || !card.classList.contains('card-tools-open')) {
+        close()
+        return
+      }
+      const tools = card.querySelector(':scope > .card-tools')
+      if (!tools) return
+      if (openTools && openTools !== tools) close()
+      decorate(tools, card)
+      tools.setAttribute('popover', 'manual')
+      try {
+        if (!tools.matches(':popover-open')) tools.showPopover()
+      } catch {
+        // Old browser fallback: existing inline right-click tools still work.
+        return
+      }
+      openTools = tools
+      // Constrain all edges; avoid a large menu going off the right/bottom.
+      const rect = tools.getBoundingClientRect()
+      tools.style.left = `${Math.max(8, Math.min(x, innerWidth - rect.width - 8))}px`
+      tools.style.top = `${Math.max(8, Math.min(y, innerHeight - rect.height - 8))}px`
+    }, 0)
+  }, true)
+
+  // Register this handler before Stage 8A, which stops propagation when
+  // Attach/Unlink is clicked. Defer hiding until existing actions have run.
+  document.addEventListener('click', (event) => {
+    if (!openTools) return
+    if (openTools.contains(event.target)) {
+      if (event.target.closest('button')) queueMicrotask(close)
+      return
+    }
+    queueMicrotask(close)
+  }, true)
+  document.addEventListener('pointerdown', (event) => {
+    if (event.button !== 2 && openTools && !openTools.contains(event.target)) close()
+  }, true)
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') close()
+  }, true)
+}
+
+
+// ===== Stage 8B: drag-and-hold to attach =====
+// The server-side setAttachment action from Stage 8A remains authoritative.
+// Hover over another one of your cards for 550ms, then release to attach.
+// Shift-drag is the fallback for cards imported before isAttachment metadata.
+const STAGE8B_HOLD_MS = 550
+let stage8bHover = null
+
+function stage8bReset() {
+  if (stage8bHover?.timer) clearTimeout(stage8bHover.timer)
+  stage8bHover?.target?.classList.remove('stage8b-attach-hover', 'stage8b-attach-ready')
+  stage8bHover?.source?.classList.remove('stage8b-attachment-drag')
+  stage8bHover = null
+}
+
+function stage8bTargetUnderPointer(source, event) {
+  if (!source?.isConnected) return null
+  const own = source.closest('.player-section')
+  if (!own || own.dataset.currentPlayer !== 'true') return null
+  const old = source.style.pointerEvents
+  // Pointer capture and high z-index otherwise hide the potential target.
+  source.style.pointerEvents = 'none'
+  let candidate
+  try {
+    candidate = document.elementFromPoint(event.clientX, event.clientY)
+      ?.closest?.('.battlefield-canvas > .battlefield-card')
+  } finally {
+    source.style.pointerEvents = old
+  }
+  if (!candidate || !own.contains(candidate) || candidate === source) return null
+  if (candidate.classList.contains('stage7-land-card') ||
+      candidate.classList.contains('stage8-attached')) return null
+  if (candidate.dataset.instanceId === source.dataset.instanceId) return null
+  return candidate
+}
+
+function stage8bMove(event) {
+  if (!drag || drag.kind !== 'card' || !drag.moved || !drag.element) {
+    stage8bReset()
+    return
+  }
+  const source = drag.element
+  const allowed = (source.dataset.stage8bAttachable === 'true' || drag.stage8bManual) &&
+    !source.classList.contains('stage7-land-card') &&
+    !source.classList.contains('stage8-attachment-host')
+  if (!allowed) {
+    stage8bReset()
+    return
+  }
+  source.classList.add('stage8b-attachment-drag')
+  const target = stage8bTargetUnderPointer(source, event)
+  if (!target) {
+    if (stage8bHover) {
+      if (stage8bHover.timer) clearTimeout(stage8bHover.timer)
+      stage8bHover.target?.classList.remove('stage8b-attach-hover', 'stage8b-attach-ready')
+    }
+    stage8bHover = { source, target: null, timer: null, ready: false }
+    return
+  }
+  if (stage8bHover?.source === source && stage8bHover.target === target) return
+  stage8bReset()
+  source.classList.add('stage8b-attachment-drag')
+  const hover = { source, target, timer: null, ready: false }
+  stage8bHover = hover
+  target.classList.add('stage8b-attach-hover')
+  hover.timer = setTimeout(() => {
+    if (stage8bHover !== hover || !target.isConnected) return
+    hover.ready = true
+    hover.timer = null
+    target.classList.add('stage8b-attach-ready')
+  }, STAGE8B_HOLD_MS)
+}
+
+function stage8bDrop(current, event, actorId) {
+  const hover = stage8bHover
+  if (current.kind !== 'card') {
+    stage8bReset()
+    return false
+  }
+  const destination = hover?.ready && hover.source === current.element
+    ? stage8bTargetUnderPointer(current.element, event)
+    : null
+  const acceptedTarget = destination && destination === hover.target
+    ? destination.dataset.instanceId : null
+  stage8bReset()
+  if (!current.moved || !acceptedTarget || !current.instanceId) return false
+  // Restore the dragged DOM position until the server refreshes the page.
+  // Dropping an Aura/Equipment is an attach action, NOT a position change.
+  current.element.style.left = current.stage8bStartLeft
+  current.element.style.top = current.stage8bStartTop
+  void sendAction(actorId, {
+    type: 'setAttachment',
+    instanceId: current.instanceId,
+    targetInstanceId: acceptedTarget,
+  })
+  return true
+}
+
+
+// ===== Stage 9: London mulligan interaction =====
+// We post these multi-card transitions directly to the actor, rather than
+// assuming the optional browser-side optimistic mirror knows the new actions.
+function wireStage9Mulligan(actorId) {
+  document.addEventListener('click', async (event) => {
+    const clicked = event.target.closest?.('[data-stage9-start], [data-stage9-redraw], [data-stage9-keep], [data-stage9-finish], [data-stage9-card-id]')
+    if (!clicked) return
+    const panel = clicked.closest('[data-stage9-panel]')
+    if (!panel) return
+    event.preventDefault()
+    event.stopPropagation()
+
+    if (clicked.hasAttribute('data-stage9-card-id')) {
+      const selected = panel._stage9Selected ?? (panel._stage9Selected = [])
+      const id = clicked.dataset.stage9CardId
+      const position = selected.indexOf(id)
+      if (position === -1) selected.push(id)
+      else selected.splice(position, 1)
+      const required = Number(panel.dataset.stage9Required)
+      panel.querySelectorAll('[data-stage9-card-id]').forEach((card) => {
+        const index = selected.indexOf(card.dataset.stage9CardId)
+        card.classList.toggle('stage9-selected', index !== -1)
+        card.setAttribute('aria-pressed', index !== -1 ? 'true' : 'false')
+        card.dataset.stage9Order = index === -1 ? '' : String(index + 1)
+      })
+      const counter = panel.querySelector('[data-stage9-counter]')
+      if (counter) counter.textContent = `Selected ${selected.length} / ${required}`
+      const finish = panel.querySelector('[data-stage9-finish]')
+      if (finish) finish.disabled = selected.length !== required
+      return
+    }
+
+    let action = null
+    if (clicked.hasAttribute('data-stage9-start')) {
+      action = { type: 'beginOpeningHand', format: panel.querySelector('[data-stage9-format]')?.value ?? 'commander' }
+    } else if (clicked.hasAttribute('data-stage9-redraw')) {
+      action = { type: 'redrawOpeningHand' }
+    } else if (clicked.hasAttribute('data-stage9-keep')) {
+      action = { type: 'keepOpeningHand' }
+    } else if (clicked.hasAttribute('data-stage9-finish')) {
+      const instanceIds = panel._stage9Selected ?? []
+      if (instanceIds.length !== Number(panel.dataset.stage9Required)) return
+      action = { type: 'finishOpeningHand', instanceIds }
+    }
+    if (!action || clicked.disabled) return
+    clicked.disabled = true
+    try {
+      await postAction(actorId, action, newGestureKey())
+    } finally {
+      if (clicked.isConnected) clicked.disabled = false
+    }
   })
 }

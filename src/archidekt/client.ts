@@ -237,6 +237,7 @@ function expandCard(entry: Record<string, unknown>): Card[] {
     tapped: false,
     isManaSource: isManaSource(oracleCard),
     isLand: isLandType({ card, oracleCard, name }),
+    isAttachment: isAttachmentType({ card, oracleCard }),
   }))
 }
 
@@ -263,6 +264,22 @@ function isLandType(options: {
       return field.some((value) => typeof value === "string" && /\bLand\b/i.test(value))
     }
     return typeof field === "string" && /\bLand\b/i.test(field.split("//")[0] ?? "")
+  })
+}
+
+// Printed and oracle type lines may appear in different Archidekt fields.
+// This only enables a UI gesture; legal targeting remains the players' job.
+function isAttachmentType(options: {
+  card: Record<string, unknown> | null
+  oracleCard: Record<string, unknown> | null
+}): boolean {
+  const fields: unknown[] = [
+    options.oracleCard?.typeLine, options.oracleCard?.type_line, options.oracleCard?.types,
+    options.card?.typeLine, options.card?.type_line, options.card?.types,
+  ]
+  return fields.some((field) => {
+    if (Array.isArray(field)) return field.some((value) => typeof value === "string" && /\b(?:Aura|Equipment)\b/i.test(value))
+    return typeof field === "string" && /\b(?:Aura|Equipment)\b/i.test(field)
   })
 }
 

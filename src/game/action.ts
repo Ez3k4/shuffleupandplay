@@ -3,6 +3,10 @@ import { DECK_POSITIONS, ZONE_NAMES, type DeckPosition, type ZoneName } from "./
 export type GameAction =
   | { type: "drawCard"; count?: number }
   | { type: "shuffleLibrary" }
+  | { type: "beginOpeningHand"; format: "commander" | "standard" }
+  | { type: "redrawOpeningHand" }
+  | { type: "keepOpeningHand" }
+  | { type: "finishOpeningHand"; instanceIds: string[] }
   | { type: "untapAll" }
   | { type: "openDeckSearch" }
   | { type: "closeDeckSearch" }
@@ -54,6 +58,16 @@ const BUILDERS: Record<GameActionType, Builder> = {
     return { type: "drawCard", count: attributes.count }
   },
   shuffleLibrary: () => ({ type: "shuffleLibrary" }),
+  beginOpeningHand: (attrs) => attrs.format === "commander" || attrs.format === "standard"
+    ? { type: "beginOpeningHand", format: attrs.format } : null,
+  redrawOpeningHand: () => ({ type: "redrawOpeningHand" }),
+  keepOpeningHand: () => ({ type: "keepOpeningHand" }),
+  finishOpeningHand: (attrs) => {
+    if (!Array.isArray(attrs.instanceIds) || attrs.instanceIds.length > 7 ||
+        !attrs.instanceIds.every((value) => typeof value === "string" && value.length > 0) ||
+        new Set(attrs.instanceIds).size !== attrs.instanceIds.length) return null
+    return { type: "finishOpeningHand", instanceIds: attrs.instanceIds as string[] }
+  },
   untapAll: () => ({ type: "untapAll" }),
   openDeckSearch: () => ({ type: "openDeckSearch" }),
   closeDeckSearch: () => ({ type: "closeDeckSearch" }),

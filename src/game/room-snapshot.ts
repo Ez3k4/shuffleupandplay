@@ -64,6 +64,7 @@ export function playerSummaries(room: Room): PlayerSummary[] {
     graveyardCount: player.graveyard.length,
     exileCount: player.exile.length,
     isSearchingDeck: player.isSearchingDeck,
+    ...(player.openingHand ? { openingHand: player.openingHand } : {}),
   }))
 }
 
@@ -119,6 +120,7 @@ function publicPlayer(options: { player: Player; sessionId: string | null }): Pu
     graveyard: player.graveyard,
     exile: player.exile,
     isSearchingDeck: player.isSearchingDeck,
+    ...(player.openingHand ? { openingHand: player.openingHand } : {}),
     appliedMove: player.appliedMove,
     hand: visible ? player.hand : hiddenCards({ player, zone: "hand" }),
     library: visible ? player.library : hiddenCards({ player, zone: "library" }),

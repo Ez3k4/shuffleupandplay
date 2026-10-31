@@ -1,53 +1,47 @@
-# Stage 8A installer — Fedora without Node.js
+# Stage 9 renderer fix + Stage 8C Other Zones fix
 
-This ZIP replaces **only the installer** `install_stage8.py` in your project directory. It does not directly change the web app. The installer keeps its existing compatibility and rollback guards.
+For your existing customized Shuffle Up and Play checkout (after Stage 8C and optionally Stage 8B). The zip replaces only the installer script **until you explicitly run the scripts**.
 
-## Fix
+## What failed
 
-Earlier versions called `node --check` unconditionally. Fedora need not have Node.js installed when building inside Podman. This version runs that optional syntax check if `node` exists; otherwise it explicitly warns and continues. The subsequent `podman build` is mandatory to type-check/compile the app.
+- The original Stage 9 installer expected exactly one `</section>` at the end of `renderPlayer`. Later customized UI layouts no longer guarantee this shape. This installer inserts the mulligan overlay directly after the existing `renderBattlefield({ player, isCurrentPlayer })` expression, retaining all surrounding markup.
+- The Stage 8C popover uses `<details><summary>Move to another zone</summary>`. The existing `beginDrag()` handler ignored buttons but did not ignore `<summary>`, so clicking the group could initiate a card drag. The small fix excludes all `.card-tools` interactions from dragging. It changes no card actions or server logic.
 
-## Inspect before modifying anything
+## Safe installation (Fedora)
 
 ```bash
 cd ~/Games/shuffleupandplay
-unzip -o ~/Downloads/mtg_tabletop_stage8a_no_node_fix.zip
-python3 install_stage8.py --status
-```
+unzip -o ~/Downloads/mtg_tabletop_stage9_and_zone_menu_fix.zip
 
-`--status` is read-only. It reports if the Stage 8 renderer helper, its invocation, the event handler, CSS and backup manifest are present.
+python3 fix_stage8c_zone_menu.py --check
+python3 install_stage9.py --check
 
-- If **every check is YES**, the source appears installed. **Do not rerun the installer.** Rebuild and restart your app (using your existing Podman run command), then see the browser verification below.
-- If Stage 8 checks are all NO, install it as follows:
+python3 fix_stage8c_zone_menu.py
+python3 install_stage9.py
 
-```bash
-python3 install_stage8.py --check
-python3 install_stage8.py
 podman stop mtg-tabletop
 podman build -t mtg-tabletop .
 ```
 
-Use your usual `podman run` command afterward; do not delete the `mtg-tabletop-data` volume.
+Restart with the SAME `podman run` command and volume as before. Do not delete the volume or Firefox site data. No Node.js installation on Fedora is required.
 
-- If checks show a **mixture of YES and NO**, do not attempt another install: share the output and inspect the current files before further changes.
+`--check` is read-only; it does not make any changes. `--inspect` for `install_stage9.py` prints relevant renderer lines without modifying anything. Both patch scripts create backups (`stage8c-zone-menu-backup/` and `stage9-backup/`).
 
-## Verify on the running page
+## Testing
 
-In Firefox F12 -> Console with a **nonland** card on your own battlefield:
+1. Open a card's context menu. Select **Move to another zone**. Verify that the nested destinations expand and that selecting e.g. Graveyard actually moves the card. Check both browser sessions.
+2. Open a **new** table with a deck before taking ordinary gameplay actions. Check the **Opening hand** panel, start, redraw, keep, and ordered card bottoming. Confirm the hand stays private.
+3. Test land stacking, right-click Attach/Unlink, and drag-to-attach if it was previously installed.
 
-```js
-console.table({
-  cards: document.querySelectorAll('.your-seat .battlefield-card:not(.stage7-land-card)').length,
-  attachButtons: document.querySelectorAll('.your-seat .battlefield-card:not(.stage7-land-card) .card-tools [data-stage8-attach-start]').length,
-  unlinkButtons: document.querySelectorAll('.your-seat .battlefield-card:not(.stage7-land-card) .card-tools [data-stage8-detach]').length
-})
+If TypeScript compilation fails, paste the exact errors; the installer checks structure and JS syntax, but cannot validate your exact customized checkout until the Podman build runs.
+
+## Undo
+
+To revert everything (only if the files have not been edited since installation), undo in the reverse order:
+
+```bash
+python3 install_stage9.py --undo
+python3 fix_stage8c_zone_menu.py --undo
 ```
 
-- `cards > 0` and `attachButtons > 0`: Stage 8 HTML is present; check the right-click visibility handler/CSS if no Attach option appears.
-- `cards > 0` but both buttons are 0: the browser is getting old/unpatched HTML, or the renderer invocation is missing. Confirm the running image and hard-refresh Firefox.
-- `cards = 0`: play a nonland permanent first.
-
-Right-click on a creature or equipment **on your battlefield**, not a land stack or a card in hand.
-
-## Safety
-
-The installer still backs up the seven files it modifies in `stage8-backup/` and refuses partial installation when source anchors differ. It does not modify your saved games. Never install on top of an already-applied Stage 8 version.
+Then rebuild/restart. If an undo refuses due to changed files, use Git or compare the backup instead of overwriting later work.

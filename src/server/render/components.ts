@@ -79,6 +79,57 @@ function playerAt(options: { room: PublicRoom | null; seat: number }): PublicPla
 
 
 
+// Stage 9: this panel uses only the viewer's own hand; no private card data
+// is emitted into the opponent's DOM. It disappears after the hand is kept.
+function renderStage9Opening(player: PublicPlayer, isCurrentPlayer: boolean): string {
+  const state = player.openingHand
+  if (!isCurrentPlayer) {
+    if (!state || state.phase === "kept") return ""
+    return `<div class="stage9-opponent-status">${escapeHtml(player.name)} is choosing an opening hand…</div>`
+  }
+  if (player.deckStatus !== "loaded" || state?.phase === "kept") return ""
+  if (!state) {
+    const eligible = player.battlefield.length === 0 && player.graveyard.length === 0 &&
+      player.exile.length === 0 && (player.hand.length === 0 || player.hand.length === 7) &&
+      (player.hand.length === 7 || player.library.length >= 7)
+    if (!eligible) return ""
+    return `<section class="stage9-opening-panel" data-stage9-panel>
+      <strong>Opening hand</strong>
+      <label>Mulligan rules
+        <select data-stage9-format>
+          <option value="commander">Commander / casual — first mulligan free</option>
+          <option value="standard">Standard — no free mulligan</option>
+        </select>
+      </label>
+      <button type="button" data-stage9-start>${player.hand.length === 7 ? "Review existing seven" : "Shuffle &amp; draw seven"}</button>
+    </section>`
+  }
+  if (state.phase === "choosing") {
+    const nextBottom = Math.max(0, state.mulligans + 1 - (state.format === "commander" ? 1 : 0))
+    return `<section class="stage9-opening-panel" data-stage9-panel>
+      <strong>Opening hand · Mulligans ${state.mulligans}</strong>
+      <span>${state.bottomCount === 0 ? "Keep all seven" : `Keep and bottom ${state.bottomCount} card${state.bottomCount === 1 ? "" : "s"}`}</span>
+      <div class="stage9-buttons">
+        <button type="button" data-stage9-keep>Keep hand</button>
+        ${nextBottom <= 7 ? `<button type="button" data-stage9-redraw>Redraw seven</button>` : ""}
+      </div>
+    </section>`
+  }
+  if (state.phase !== "bottoming") return ""
+  const choices = player.hand.map((card) =>
+    `<button type="button" class="stage9-card-choice" data-stage9-card-id="${attribute(card.instanceId)}" ${previewAttributes(card)} aria-pressed="false">${cardFace(card)}</button>`
+  ).join("")
+  return `<section class="stage9-opening-panel stage9-bottoming" data-stage9-panel data-stage9-required="${state.bottomCount}">
+    <strong>Put ${state.bottomCount} on the bottom</strong>
+    <p>Select cards in the order they should be placed on the bottom of your library.</p>
+    <div class="stage9-bottom-cards">${choices}</div>
+    <div class="stage9-buttons">
+      <span data-stage9-counter>Selected 0 / ${state.bottomCount}</span>
+      <button type="button" data-stage9-finish disabled>Finish opening hand</button>
+    </div>
+  </section>`
+}
+
 function renderPlayer(options: {
   context: ComponentRenderContext
   seat: number
@@ -129,6 +180,7 @@ function renderPlayer(options: {
       ${isCurrentPlayer ? "" : playerDetails}
 
       ${renderBattlefield({ player, isCurrentPlayer })}
+  ${renderStage9Opening(player, isCurrentPlayer)}
 
       ${isCurrentPlayer ? playerDetails : ""}
     </section>
@@ -274,6 +326,11 @@ function renderBattlefield(options: {
       card,
       isCurrentPlayer: options.isCurrentPlayer,
       hasAttachments: options.player.battlefield.some((candidate) => candidate.attachedTo === card.instanceId),
+      attachmentIndex: card.attachedTo
+        ? options.player.battlefield
+            .filter((candidate) => candidate.attachedTo === card.attachedTo)
+            .findIndex((candidate) => candidate.instanceId === card.instanceId)
+        : 0,
     }))
     .join("")
   const lands = renderLandZone(options)
@@ -286,6 +343,7 @@ function renderBattlefieldCard(options: {
   isCurrentPlayer: boolean
   landStackIndex?: number
   hasAttachments?: boolean
+  attachmentIndex?: number
 }): string {
   const { card, isCurrentPlayer } = options
   const tools = isCurrentPlayer ? renderCardTools(card) + renderStage8AttachmentTool(card) : ""
@@ -320,7 +378,7 @@ function renderBattlefieldCard(options: {
     ? `--stage7-stack-index:${options.landStackIndex}`
     : `left:calc(var(--tabletop-travel-x) * ${card.x / 1200});top:calc(var(--tabletop-travel-y) * ${card.y / 700})`
   const landClass = isLandStackCard ? " stage7-land-card" : ""
-  return `<div class="battlefield-card${card.tapped ? " tapped" : ""}${landClass}${card.attachedTo ? " stage8-attached" : ""}${options.hasAttachments ? " stage8-attachment-host" : ""}" data-instance-id="${attribute(card.instanceId)}" ${previewAttributes(card)} style="${position}">
+  return `<div class="battlefield-card${card.tapped ? " tapped" : ""}${landClass}${card.attachedTo ? " stage8-attached" : ""}${options.hasAttachments ? " stage8-attachment-host" : ""}" data-instance-id="${attribute(card.instanceId)}" data-stage8b-attachable="${card.isAttachment === true ? "true" : "false"}" ${previewAttributes(card)} style="${position};--stage8c-attach-x:${23 + Math.min(options.attachmentIndex ?? 0, 8) * 26}px;--stage8c-attach-y:${31 + Math.min(options.attachmentIndex ?? 0, 8) * 16}px">
   <img loading="lazy" src="${attribute(card.imageUrl)}" alt="${attribute(card.name)}" />
   <div class="card-tools">${tools}</div>${counters}
 </div>`

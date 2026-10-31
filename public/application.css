@@ -3158,3 +3158,179 @@ main.layout[data-game] #players-area .player-zones {
 #players-area .card-tools .stage8-tool {
   border-color: rgba(213, 188, 133, 0.7);
 }
+
+/* ===== Stage 8C: attachment fan and compact card menu ===== */
+/* Each attached card gets a stable offset from its index within the host's
+ * attachment group. Its independent instance ID, game state and tap status
+ * remain unchanged. The host stays visually in front. */
+#players-area .battlefield-canvas > .battlefield-card.stage8-attached {
+  margin-left: var(--stage8c-attach-x, 23px);
+  margin-top: var(--stage8c-attach-y, 31px);
+  z-index: 2;
+}
+#players-area .battlefield-canvas > .battlefield-card.stage8-attachment-host {
+  z-index: 3;
+}
+/* The native popover is in the browser's top layer, so it cannot be clipped
+ * by the battlefield card's overflow:hidden or by its tapped rotation. */
+#players-area .battlefield-card > .card-tools:popover-open {
+  position: fixed !important;
+  inset: auto;
+  display: flex !important;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 225px;
+  max-width: calc(100vw - 16px);
+  max-height: min(72vh, 440px);
+  margin: 0;
+  padding: 0.55rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 11px;
+  background: #1a2529;
+  color: var(--text);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65);
+  transform: none !important;
+  z-index: 11000;
+}
+.stage8c-menu-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #f3e7d0;
+  font-weight: 700;
+  font-size: 0.86rem;
+  padding: 0.35rem 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+#players-area .card-tools:popover-open > button,
+#players-area .card-tools:popover-open .stage8c-menu-subactions > button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 34px;
+  padding: 0.35rem 0.45rem;
+  border-radius: 6px;
+  text-align: left;
+  transform: none;
+}
+.stage8c-menu-label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  white-space: normal;
+}
+.stage8c-menu-group {
+  border-top: 1px solid var(--line);
+  padding-top: 0.4rem;
+}
+.stage8c-menu-group > summary {
+  display: block;
+  padding: 0.5rem;
+  border-radius: 7px;
+  color: #f0e4cc;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.stage8c-menu-group > summary:hover { background: rgba(196, 156, 75, 0.22); }
+.stage8c-menu-group > summary::after { content: ' ▸'; }
+.stage8c-menu-group[open] > summary::after { content: ' ▾'; }
+.stage8c-menu-subactions { display: grid; gap: 0.25rem; margin-top: 0.25rem; }
+
+/* ===== Stage 8B: drag-and-hold attachment targeting ===== */
+/* Every ordinary moving battlefield card rises above overlapping cards.
+ * Dragging an Aura/Equipment to attach is the exception: it passes UNDER
+ * its potential host, so the target remains visible and easy to identify. */
+#players-area .battlefield-canvas > .battlefield-card.is-dragging:not(.stage8b-attachment-drag) {
+  z-index: 1000 !important;
+}
+#players-area .battlefield-canvas > .battlefield-card.is-dragging.stage8b-attachment-drag {
+  z-index: 2 !important;
+}
+/* Amber means hovering over a possible attachment target; green means the
+ * pointer has remained there long enough to attach upon release. */
+#players-area .battlefield-canvas > .battlefield-card.stage8b-attach-hover {
+  z-index: 5 !important;
+  outline: 3px solid #deb66c;
+  outline-offset: 2px;
+}
+#players-area .battlefield-canvas > .battlefield-card.stage8b-attach-ready {
+  outline-color: #7ee3aa;
+  box-shadow: 0 0 0 3px rgba(126, 227, 170, 0.23), 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+
+
+
+/* ===== Stage 9: opening hand mulligan panel ===== */
+/* The controls overlay the battlefield only while selecting an opening hand.
+   They don't change battlefield dimensions or normalized card coordinates. */
+#players-area .player-section { position: relative; }
+#players-area .stage9-opening-panel {
+  position: absolute;
+  z-index: 600;
+  top: 2.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(680px, calc(100% - 24px));
+  max-height: min(72vh, 520px);
+  overflow-y: auto;
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: rgba(18, 30, 32, 0.97);
+  color: var(--text);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.6);
+}
+#players-area .stage9-opening-panel > strong { font-size: 0.96rem; }
+#players-area .stage9-opening-panel label { display: grid; gap: 0.3rem; font-size: 0.85rem; }
+#players-area .stage9-opening-panel p { margin: 0; color: var(--muted); font-size: 0.82rem; }
+#players-area .stage9-buttons { display: flex; gap: 0.55rem; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+#players-area .stage9-opening-panel button { padding: 0.48rem 0.7rem; }
+#players-area .stage9-bottom-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 0.55rem;
+  overflow: auto;
+  max-height: 300px;
+}
+#players-area .stage9-card-choice {
+  min-width: 0;
+  width: 100%;
+  padding: 0.22rem;
+  background: #1b2930;
+  border: 2px solid rgba(196, 170, 121, 0.3);
+  box-shadow: none;
+  position: relative;
+}
+#players-area .stage9-card-choice img { display: block; width: 100%; height: auto; border-radius: 5px; }
+#players-area .stage9-card-choice span { font-size: 0.7rem; }
+#players-area .stage9-card-choice.stage9-selected { border-color: #80d5a4; box-shadow: 0 0 0 1px #80d5a4; }
+#players-area .stage9-card-choice.stage9-selected::before {
+  content: attr(data-stage9-order);
+  position: absolute;
+  top: 0.2rem;
+  right: 0.2rem;
+  background: #1b4935;
+  color: white;
+  padding: 0.12rem 0.42rem;
+  border-radius: 999px;
+  z-index: 1;
+}
+#players-area .stage9-opponent-status {
+  position: absolute;
+  z-index: 30;
+  top: 2.8rem;
+  left: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 7px;
+  font-size: 0.73rem;
+  background: rgba(15, 30, 27, 0.88);
+}
+@media (max-width: 700px) {
+  #players-area .stage9-opening-panel { top: 2rem; padding: 0.6rem; }
+  #players-area .stage9-bottom-cards { grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); }
+}

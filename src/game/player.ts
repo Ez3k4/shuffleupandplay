@@ -57,7 +57,20 @@ export function applyPlayerAction(options: ApplyPlayerActionOptions): Player {
   const player = structuredClone(options.player)
   const randomness = options.randomness ?? defaultRandomness
 
+  // While choosing an opening hand, normal game actions are blocked.
+  if (player.openingHand && player.openingHand.phase !== "kept" &&
+      !["beginOpeningHand", "redrawOpeningHand", "keepOpeningHand", "finishOpeningHand"].includes(action.type)) {
+    return player
+  }
   switch (action.type) {
+    case "beginOpeningHand":
+      return beginOpeningHand(player, action.format, randomness)
+    case "redrawOpeningHand":
+      return redrawOpeningHand(player, randomness)
+    case "keepOpeningHand":
+      return keepOpeningHand(player)
+    case "finishOpeningHand":
+      return finishOpeningHand(player, action.instanceIds)
     case "drawCard":
       return drawCards({ player, count: action.count ?? 1 })
     case "shuffleLibrary":
@@ -94,6 +107,76 @@ export function applyPlayerAction(options: ApplyPlayerActionOptions): Player {
       return moveCounter({ player, action })
     case "updateCounterValue":
       return updateCounterValue({ player, action })
+  }
+}
+
+// Stage 9: a London mulligan starts with seven cards and only bottoms on keep.
+// Repeated redraws use the tournament shortcut: shuffle the current hand back
+// without bottoming first, then bottom the final required number upon keeping.
+function openingBottomCount(mulligans: number, format: "commander" | "standard"): number {
+  return Math.max(0, mulligans - (format === "commander" ? 1 : 0))
+}
+
+function beginOpeningHand(player: Player, format: "commander" | "standard", randomness: Randomness): Player {
+  if (player.deckStatus !== "loaded" || player.openingHand) return player
+  if (player.battlefield.length || player.graveyard.length || player.exile.length) return player
+  if (player.hand.length !== 0 && player.hand.length !== 7) return player
+  if (player.hand.length === 0 && player.library.length < 7) return player
+  // Existing seven-card hands are adopted rather than drawn twice.
+  const library = player.hand.length === 7 ? player.library : randomness.shuffle(player.library)
+  return {
+    ...player,
+    library: player.hand.length === 7 ? library : library.slice(7),
+    hand: player.hand.length === 7 ? player.hand : library.slice(0, 7),
+    openingHand: { phase: "choosing", format, mulligans: 0, bottomCount: 0 },
+  }
+}
+
+function redrawOpeningHand(player: Player, randomness: Randomness): Player {
+  const state = player.openingHand
+  if (!state || state.phase !== "choosing" || player.hand.length !== 7) return player
+  const mulligans = state.mulligans + 1
+  if (openingBottomCount(mulligans, state.format) > 7) return player
+  const shuffled = randomness.shuffle([...player.library, ...player.hand])
+  if (shuffled.length < 7) return player
+  return {
+    ...player,
+    library: shuffled.slice(7),
+    hand: shuffled.slice(0, 7),
+    openingHand: {
+      ...state,
+      mulligans,
+      bottomCount: openingBottomCount(mulligans, state.format),
+    },
+  }
+}
+
+function keepOpeningHand(player: Player): Player {
+  const state = player.openingHand
+  if (!state || state.phase !== "choosing" || player.hand.length !== 7) return player
+  return {
+    ...player,
+    openingHand: {
+      ...state,
+      phase: state.bottomCount === 0 ? "kept" : "bottoming",
+    },
+  }
+}
+
+function finishOpeningHand(player: Player, instanceIds: string[]): Player {
+  const state = player.openingHand
+  if (!state || state.phase !== "bottoming") return player
+  if (instanceIds.length !== state.bottomCount || new Set(instanceIds).size !== instanceIds.length) return player
+  const byId = new Map(player.hand.map((card) => [card.instanceId, card] as const))
+  const bottomCards = instanceIds.map((id) => byId.get(id))
+  if (bottomCards.some((card) => card === undefined)) return player
+  const chosen = new Set(instanceIds)
+  return {
+    ...player,
+    hand: player.hand.filter((card) => !chosen.has(card.instanceId)),
+    // Click order determines the ordering at the bottom of the library.
+    library: [...player.library, ...bottomCards.filter((card): card is Card => card !== undefined)],
+    openingHand: { ...state, phase: "kept" },
   }
 }
 
@@ -412,6 +495,7 @@ function deckCard(card: Card): Card {
     imageUrl: card.imageUrl,
     tapped: card.tapped,
     isManaSource: card.isManaSource,
+    ...(card.isAttachment !== undefined ? { isAttachment: card.isAttachment } : {}),
     ...(card.isLand !== undefined ? { isLand: card.isLand } : {}),
   }
 }

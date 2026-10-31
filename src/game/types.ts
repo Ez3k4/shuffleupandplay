@@ -19,6 +19,8 @@ export type Card = {
   isManaSource: boolean
   /** Visible face is a land. Optional for saved decks created before Stage 7. */
   isLand?: boolean
+  /** Aura or Equipment type, for optional drag-to-attach. */
+  isAttachment?: boolean
 }
 
 export type CardCounter = {
@@ -36,6 +38,14 @@ export type BattlefieldCard = Card & {
   counters: CardCounter[]
 }
 
+// Stage 9: opening-hand state is stored with the player.
+export type OpeningHandState = {
+  phase: "choosing" | "bottoming" | "kept"
+  format: "commander" | "standard"
+  mulligans: number
+  bottomCount: number
+}
+
 export type Player = {
   id: string
   sessionId: string
@@ -51,6 +61,7 @@ export type Player = {
   graveyard: Card[]
   exile: Card[]
   isSearchingDeck: boolean
+  openingHand?: OpeningHandState
   appliedMove: number
 }
 
@@ -89,6 +100,7 @@ export type PublicPlayer = {
   graveyard: PublicCard[]
   exile: PublicCard[]
   isSearchingDeck: boolean
+  openingHand?: OpeningHandState
   appliedMove: number
 }
 
@@ -119,6 +131,7 @@ export type PlayerSummary = {
   graveyardCount: number
   exileCount: number
   isSearchingDeck: boolean
+  openingHand?: OpeningHandState
 }
 
 export type CardFingerprint = {
