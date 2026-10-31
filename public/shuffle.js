@@ -121,6 +121,7 @@ function start(game) {
   wireTooltips()
   wireCardTools(game)
   wireLibraryPeek(game)
+  wireLibraryControls(game, actorId)
   wireLibraryCardTools(game)
 }
 
@@ -490,6 +491,8 @@ function beginDrag(event, game) {
     kind: "card",
     element: card,
     instanceId: card.dataset.instanceId,
+    startLeft: card.offsetLeft,
+    startTop: card.offsetTop,
     canvas,
     offset: dragOffset({
       pointer: { x: event.clientX, y: event.clientY },
@@ -615,6 +618,12 @@ function finishDrag(event, actorId) {
     return void sendAction(actorId, { type: "toggleTap", instanceId: current.instanceId })
   }
 
+  if (cardOverlapsPile(current.element)) {
+    current.element.style.left = `${current.startLeft}px`
+    current.element.style.top = `${current.startTop}px`
+    showToast("Move cancelled: card piles occupy this area.")
+    return
+  }
   void sendAction(actorId, {
     type: "moveBattlefieldCard",
     instanceId: current.instanceId,
@@ -1149,7 +1158,7 @@ function wireLibraryPeek(game) {
     )
   }
 
-  document.addEventListener("contextmenu", (event) => {
+  document.addEventListener("library-peek-request", (event) => {
     const trigger = event.target.closest?.(
       ".library-zone-preview"
     )
@@ -1325,4 +1334,92 @@ function wireLibraryCardTools(game) {
       closeMenu()
     }
   })
+}
+
+
+// ===== Stage 3: library menu and protected piles =====
+// Library left-click draws. Right-click shows choices. This uses the existing
+// action transport and does not expose an opponent's hidden library cards.
+function wireLibraryControls(game, actorId) {
+  const menu = document.createElement("div")
+  menu.className = "stage3-library-menu"
+  menu.hidden = true
+  menu.innerHTML = `
+    <strong>Library actions</strong>
+    <button type="button" data-library-choice="peek">Look at top X</button>
+    <button type="button" data-library-choice="search">Search library</button>
+    <button type="button" data-library-choice="shuffle">Shuffle library</button>
+  `
+  document.body.append(menu)
+  let activeLibrary = null
+
+  function ownLibrary(target) {
+    const pile = target.closest?.(".library-zone-preview")
+    if (!pile) return null
+    const seat = pile.closest(".player-section")
+    return seat?.dataset.currentPlayer === "true" ? pile : null
+  }
+
+  function closeMenu() {
+    menu.hidden = true
+    activeLibrary = null
+  }
+
+  // Capture-phase interception prevents the old openDeckSearch button action.
+  document.addEventListener("click", (event) => {
+    const pile = ownLibrary(event.target)
+    if (!pile) return
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    closeMenu()
+    void sendAction(actorId, { type: "drawCard", count: 1 })
+  }, true)
+
+  // Capture-phase interception also prevents the old direct-peek right click.
+  document.addEventListener("contextmenu", (event) => {
+    const pile = ownLibrary(event.target)
+    if (!pile) return
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    activeLibrary = pile
+    menu.hidden = false
+    const rect = menu.getBoundingClientRect()
+    menu.style.left = `${Math.max(8, Math.min(event.clientX, window.innerWidth - rect.width - 8))}px`
+    menu.style.top = `${Math.max(8, Math.min(event.clientY, window.innerHeight - rect.height - 8))}px`
+  }, true)
+
+  menu.addEventListener("click", (event) => {
+    const choice = event.target.closest?.("[data-library-choice]")?.dataset.libraryChoice
+    const pile = activeLibrary
+    if (!choice || !pile) return
+    closeMenu()
+
+    if (choice === "peek") {
+      // Reuse the existing private peek dialog; this does not reorder cards.
+      pile.dispatchEvent(new CustomEvent("library-peek-request", { bubbles: true }))
+    } else if (choice === "search") {
+      void sendAction(actorId, { type: "openDeckSearch" })
+    } else if (choice === "shuffle") {
+      void sendAction(actorId, { type: "shuffleLibrary" })
+    }
+  })
+
+  document.addEventListener("pointerdown", (event) => {
+    if (!menu.hidden && !menu.contains(event.target)) closeMenu()
+  })
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeMenu()
+  })
+  window.addEventListener("scroll", closeMenu, true)
+}
+
+// The piles float above the battlefield. Reject card drops whose visible
+// rectangle intersects any of the three fixed piles, not just the library.
+function cardOverlapsPile(card) {
+  const pileRow = card.closest(".player-section")?.querySelector(".zone-lanes")
+  if (!pileRow) return false
+  const a = card.getBoundingClientRect()
+  const b = pileRow.getBoundingClientRect()
+  if (!a.width || !a.height || !b.width || !b.height) return false
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
 }
