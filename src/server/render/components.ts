@@ -307,7 +307,7 @@ function renderBattlefieldCard(options: {
     })
     .join("")
 
-  return `<div class="battlefield-card${card.tapped ? " tapped" : ""}" data-instance-id="${attribute(card.instanceId)}" ${previewAttributes(card)} style="left:${card.x}px;top:${card.y}px">
+  return `<div class="battlefield-card${card.tapped ? " tapped" : ""}" data-instance-id="${attribute(card.instanceId)}" ${previewAttributes(card)} style="left:calc(var(--tabletop-travel-x) * ${card.x / 1200});top:calc(var(--tabletop-travel-y) * ${card.y / 700})">
   <img loading="lazy" src="${attribute(card.imageUrl)}" alt="${attribute(card.name)}" />
   <div class="card-tools">${tools}</div>${counters}
 </div>`

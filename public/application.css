@@ -2840,3 +2840,93 @@ main.layout[data-game] #players-area .player-zones {
     max-height: 35dvh;
   }
 }
+
+/* ===== Stage 6: normalized card positions and life beside name ===== */
+/*
+ * The game state continues to store x in [0,1200] and y in [0,700].
+ * The renderer interprets these as fractions of the usable card-travel
+ * distance in each browser. Cards keep their pixel dimensions; only their
+ * left/top positions vary with the canvas width and height.
+ *
+ * We reserve a strip on the right for the floating Library/GY/Exile piles
+ * on BOTH player boards. This prevents a remote browser with a narrower
+ * window from rendering a permanent behind those piles.
+ */
+#players-area .player-section {
+  --tabletop-card-width: 116px;
+  --tabletop-card-height: 162px;
+  --tabletop-pile-card-width: 98px;
+  --tabletop-pile-gap: 0.45rem;
+  --tabletop-pile-reserve: calc(3 * var(--tabletop-pile-card-width) + 2 * var(--tabletop-pile-gap) + 16px);
+}
+
+#players-area .battlefield-canvas {
+  --tabletop-travel-x: max(0px, calc(100% - var(--tabletop-card-width) - var(--tabletop-pile-reserve)));
+  --tabletop-travel-y: max(0px, calc(100% - var(--tabletop-card-height)));
+}
+
+#players-area .battlefield-card {
+  width: var(--tabletop-card-width);
+  height: var(--tabletop-card-height);
+}
+
+@media (max-width: 860px) {
+  #players-area .player-section {
+    --tabletop-card-width: 102px;
+    --tabletop-card-height: 146px;
+  }
+}
+
+@media (max-width: 700px) {
+  #players-area .player-section {
+    --tabletop-pile-card-width: 68px;
+    --tabletop-pile-gap: 0.3rem;
+  }
+}
+
+/*
+ * Both player identities now form one compact inline group. The original
+ * buttons (minus/plus/reset for the owner) remain exactly as rendered;
+ * only their location changes. Actions still float at top-right.
+ */
+#players-area .your-seat .zone-summary,
+#players-area .opponent-seat .zone-summary {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0.55rem;
+  padding: 0.35rem 0.6rem;
+}
+
+#players-area .your-seat .zone-summary-player,
+#players-area .your-seat .zone-summary-life,
+#players-area .opponent-seat .zone-summary-player,
+#players-area .opponent-seat .zone-summary-life {
+  position: static;
+  inset: auto;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  transform: none;
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+#players-area .your-seat .zone-summary-player,
+#players-area .opponent-seat .zone-summary-player {
+  max-width: min(35vw, 22rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#players-area .your-seat .zone-summary-life {
+  pointer-events: auto;
+}
+
+#players-area .opponent-seat .zone-summary-life {
+  pointer-events: none;
+}

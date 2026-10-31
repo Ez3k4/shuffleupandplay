@@ -624,11 +624,12 @@ function finishDrag(event, actorId) {
     showToast("Move cancelled: card piles occupy this area.")
     return
   }
+  const logicalPosition = tabletopLogicalPosition(current.element, position)
   void sendAction(actorId, {
     type: "moveBattlefieldCard",
     instanceId: current.instanceId,
-    x: position.left,
-    y: position.top,
+    x: logicalPosition.x,
+    y: logicalPosition.y,
   })
 }
 
@@ -1422,4 +1423,24 @@ function cardOverlapsPile(card) {
   const b = pileRow.getBoundingClientRect()
   if (!a.width || !a.height || !b.width || !b.height) return false
   return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
+}
+
+
+// ===== Stage 6: convert a physical mouse drop to the logical board =====
+// Match the CSS travel distance. Reserve the right-hand piles on both seats.
+// The server already clamps coordinates to 0..1200 and 0..700.
+function tabletopLogicalPosition(card, position) {
+  const canvas = card.closest('.battlefield-canvas')
+  if (!canvas) return { x: position.left, y: position.top }
+
+  const piles = card.closest('.player-section')?.querySelector('.zone-lanes')
+  const pileWidth = piles?.getBoundingClientRect().width ?? 0
+  const maxLeft = Math.max(0, canvas.clientWidth - card.offsetWidth - pileWidth - 16)
+  const maxTop = Math.max(0, canvas.clientHeight - card.offsetHeight)
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
+
+  return {
+    x: maxLeft ? Math.round(clamp(position.left / maxLeft, 0, 1) * 1200) : 0,
+    y: maxTop ? Math.round(clamp(position.top / maxTop, 0, 1) * 700) : 0,
+  }
 }
