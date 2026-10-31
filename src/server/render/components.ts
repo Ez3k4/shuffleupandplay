@@ -100,7 +100,6 @@ function renderPlayer(options: {
   ].join(" ")
 
   const playerDetails = `
-    ${renderPlayerHeader({ player, isCurrentPlayer })}
     ${renderZoneSummary(player, isCurrentPlayer)}
 
     <div class="player-zones">
@@ -175,6 +174,47 @@ function renderZoneSummary(
     })
     .join("")
 
+
+const playerName = `
+  <div class="player-header-name">
+    <strong>${escapeHtml(player.name)}</strong>
+  </div>
+`
+
+const lifeControls = `
+  <div class="life-controls">
+    ${
+      isCurrentPlayer
+        ? actionButton({
+            action: { type: "adjustLife", delta: -1 },
+            label: "−"
+          })
+        : ""
+    }
+
+    <span class="life-value">${player.life}</span>
+
+    ${
+      isCurrentPlayer
+        ? actionButton({
+            action: { type: "adjustLife", delta: 1 },
+            label: "+"
+          })
+        : ""
+    }
+
+    ${
+      isCurrentPlayer
+        ? actionButton({
+            action: { type: "resetLife" },
+            label: "Reset"
+          })
+        : ""
+    }
+  </div>
+`
+
+    
   const actions =
     isCurrentPlayer && player.deckName
       ? `<div class="zone-summary-actions">
@@ -197,15 +237,27 @@ function renderZoneSummary(
         </div>`
       : ""
 
+
   return `
     <div class="zone-summary">
+
+      <div class="zone-summary-player">
+        ${playerName}
+      </div>
+
+      <div class="zone-summary-life">
+        ${lifeControls}
+      </div>
+
       <div class="zone-summary-info">
-        <span>Deck: ${escapeHtml(player.deckName ?? "not loaded")}</span>
         ${counts}
       </div>
+
       ${actions}
+
     </div>
   `
+
 }
 
 

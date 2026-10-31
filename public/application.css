@@ -1749,3 +1749,64 @@ button:disabled,
     flex-direction: column;
   }
 }
+
+
+
+/* ===== Single-row player status bar ===== */
+
+.zone-summary {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.35rem 0.75rem;
+  overflow-x: auto;
+  min-width: 0;
+}
+
+/* All four sections stay on one line */
+.zone-summary-player,
+.zone-summary-life,
+.zone-summary-info,
+.zone-summary-actions {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* Player name */
+.zone-summary-player {
+  display: flex;
+  align-items: center;
+}
+
+/* Life controls */
+.zone-summary-life .life-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.3rem;
+}
+
+/* Zone counts */
+.zone-summary-info {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.65rem;
+  margin-left: auto;
+}
+
+/* Action buttons on the right */
+.zone-summary-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.3rem;
+  margin-left: 0;
+}
+
+.zone-summary-actions button {
+  white-space: nowrap;
+  padding: 0.3rem 0.5rem;
+}
