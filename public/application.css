@@ -2559,3 +2559,284 @@ dialog.library-peek-dialog {
 
 /* The moving card remains visible above the floating card piles. */
 #players-area .your-seat .battlefield-card.is-dragging { z-index: 100; }
+
+/* ===== Stage 4: Opponent's compact top-edge tabletop =====
+   Mirror the floating lower zones for the opponent without exposing the
+   opponent's hand. All controls remain in their original component frames,
+   so multiplayer updates and the existing zone inspector continue to work.
+*/
+#players-area .opponent-seat {
+  --opponent-pile-gap: 0.45rem;
+  --opponent-pile-width: calc(3 * var(--zone-card-width, 98px) + 2 * var(--opponent-pile-gap));
+  position: relative;
+}
+
+/* This bar stays in the DOM for live count/life updates, but no longer
+   consumes a row above the opponent's battlefield. */
+#players-area .opponent-seat .zone-summary {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: visible;
+  pointer-events: none;
+}
+
+#players-area .opponent-seat .zone-summary-player {
+  position: absolute;
+  top: 0.35rem;
+  left: 0.6rem;
+  pointer-events: none;
+}
+
+/* Show only the public hand count, not the hidden cards or deck details. */
+#players-area .opponent-seat .zone-summary-info {
+  position: absolute;
+  top: 2rem;
+  left: 0.6rem;
+  display: flex;
+  margin: 0;
+  pointer-events: none;
+}
+#players-area .opponent-seat .zone-summary-info > :not([data-zone-count="hand"]) {
+  display: none;
+}
+
+/* The opponent's life is read-only and centered over the remaining
+   battlefield width to the left of the three piles. */
+#players-area .opponent-seat .zone-summary-life {
+  position: absolute;
+  top: 0.35rem;
+  left: calc((100% - var(--opponent-pile-width) - 1rem) / 2);
+  margin: 0;
+  padding: 0.2rem 0.65rem;
+  transform: translateX(-50%);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(12, 26, 24, 0.88);
+  pointer-events: none;
+}
+#players-area .opponent-seat .zone-summary-actions {
+  display: none;
+}
+
+/* The opponent's card-zone element becomes a zero-height anchor at the
+   TOP edge; the battlefield still determines the section height. */
+#players-area .opponent-seat .player-zones {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 40;
+  display: block;
+  width: 100%;
+  height: 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* The opponent's hand contents are never rendered to this client. Its
+   hand count is already present next to the name, so hide the placeholder. */
+#players-area .opponent-seat .player-zones .hand-zone {
+  display: none;
+}
+
+/* Library, graveyard and exile are three card-sized piles at top-right.
+   Their existing preview and search functionality is unchanged. */
+#players-area .opponent-seat .player-zones .zone-lanes {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  display: flex;
+  flex-wrap: nowrap;
+  width: max-content;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  gap: var(--opponent-pile-gap);
+  pointer-events: auto;
+}
+#players-area .opponent-seat .player-zones .zone-lane {
+  display: block;
+  flex: 0 0 var(--zone-card-width);
+  width: var(--zone-card-width);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: visible;
+}
+#players-area .opponent-seat .player-zones .zone-preview,
+#players-area .opponent-seat .player-zones .library-zone-preview {
+  display: block;
+  width: 100%;
+  aspect-ratio: 488 / 680;
+  margin: 0;
+  padding: 0;
+  border-radius: 10px;
+  box-shadow: 2px 2px 0 #4e514c, 4px 4px 0 #303831;
+}
+
+/* Draw, library search, and shuffle now belong to left/right-click on
+   the library pile. Untap All is the only old action still needed. */
+#players-area .your-seat .zone-summary-actions {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.6rem;
+  z-index: 46;
+  display: flex;
+  width: auto;
+  max-width: none;
+  margin: 0;
+  pointer-events: auto;
+}
+#players-area .your-seat .zone-summary-actions button {
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+/* Keep pile dimensions consistent with the smaller-card breakpoint used
+   by the local player's bottom-edge layout. */
+@media (max-width: 700px) {
+  #players-area .opponent-seat {
+    --zone-card-width: 68px;
+    --opponent-pile-gap: 0.3rem;
+  }
+  #players-area .opponent-seat .player-zones .zone-lanes {
+    gap: var(--opponent-pile-gap);
+  }
+}
+
+/* ===== Stage 5: viewport-sized two-player battlefield ===== */
+/*
+ * Only the actual game table is constrained to the browser viewport.
+ * The lobby, help pages and other non-game screens retain their original layout.
+ * Both battlefields share the available height equally. On short screens,
+ * scroll a battlefield internally rather than scrolling the whole page.
+ * No transform/zoom is applied to the card canvas: this preserves the
+ * existing pixel-coordinate drag calculations.
+ */
+body:has(> main.layout[data-game]) {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+main.layout[data-game] {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  max-height: 100dvh;
+  max-width: none;
+  margin: 0;
+  padding: 0.55rem;
+  gap: 0.45rem;
+  overflow: hidden;
+}
+
+/* Collapsible panels stay above the board. If both expand, their contents
+ * can scroll without forcing the entire game page to scroll. */
+main.layout[data-game] > .tabletop-tools {
+  flex: 0 0 auto;
+  min-height: 0;
+  max-height: min(43dvh, 400px);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* The board consumes whatever height remains after the top tools/status. */
+main.layout[data-game] > .board-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  gap: 0;
+}
+
+main.layout[data-game] .main-table {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  padding: 0.45rem;
+  overflow: hidden;
+}
+
+/* The turbo-frame elements were already set to display:contents in the
+ * upstream stylesheet; each player section can therefore occupy one row. */
+main.layout[data-game] #players-area {
+  display: grid;
+  flex: 1 1 0;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  gap: 0;
+  overflow: hidden;
+}
+
+/* Each seat fills its row; floating hand, life and pile controls remain
+ * positioned relative to that seat, not to the entire browser window. */
+main.layout[data-game] #players-area .player-section {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Override the former fixed/clamped battlefield height. Leave card sizes
+ * and card coordinates untouched. */
+main.layout[data-game] #players-area .battlefield {
+  flex: 1 1 0;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+/* A very short window should not squash the playable canvas below roughly
+ * one full card height. In that case scroll INSIDE that battlefield. */
+main.layout[data-game] #players-area .battlefield-canvas {
+  min-height: max(100%, 180px);
+}
+
+/* Keep custom floating zones above the canvas. The existing drag-over-pile
+ * protection continues to use actual rendered rectangles. */
+main.layout[data-game] #players-area .player-zones {
+  z-index: 40;
+}
+
+@media (max-height: 700px) {
+  main.layout[data-game] {
+    padding: 0.3rem;
+    gap: 0.25rem;
+  }
+  main.layout[data-game] .main-table {
+    padding: 0.25rem;
+  }
+  main.layout[data-game] > .tabletop-tools {
+    max-height: 35dvh;
+  }
+}

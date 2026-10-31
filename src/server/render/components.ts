@@ -219,24 +219,11 @@ const lifeControls = `
     isCurrentPlayer && player.deckName
       ? `<div class="zone-summary-actions">
           ${actionButton({
-            action: { type: "drawCard", count: 1 },
-            label: "Draw"
-          })}
-          ${actionButton({
-            action: { type: "shuffleLibrary" },
-            label: "Shuffle"
-          })}
-          ${actionButton({
             action: { type: "untapAll" },
             label: "Untap all"
           })}
-          ${actionButton({
-            action: { type: "openDeckSearch" },
-            label: "Search library"
-          })}
         </div>`
       : ""
-
 
   return `
     <div class="zone-summary">
