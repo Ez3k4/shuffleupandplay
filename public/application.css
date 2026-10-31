@@ -2382,3 +2382,149 @@ dialog.library-peek-dialog {
     transition: none;
   }
 }
+
+/* ===== Stage 2A: Float the local player's hand and card piles =====
+   The player section itself is the positioning reference. Only the
+   battlefield contributes to its height; controls overlay unused edges.
+   Card actions, drag behavior, and the underlying DOM are unchanged.
+*/
+#players-area .your-seat {
+  position: relative;
+}
+
+/* Keep the status component for its existing buttons, but remove its
+   full-width bar from normal document flow. */
+#players-area .your-seat .zone-summary {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  display: block;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* Player name at the top-left of the playing surface. */
+#players-area .your-seat .zone-summary-player {
+  position: absolute;
+  top: 0.35rem;
+  left: 0.6rem;
+  pointer-events: auto;
+}
+
+/* Zone counts already appear on the card piles; keep the element in the
+   DOM for existing live updates without taking up any screen space. */
+#players-area .your-seat .zone-summary-info {
+  display: none;
+}
+
+/* Keep the game actions accessible until Stage 3 relocates them to the
+   library and battlefield interactions. */
+#players-area .your-seat .zone-summary-actions {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.6rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 60%;
+  margin: 0;
+  pointer-events: auto;
+}
+
+/* A zero-height layer: its children float above the battlefield without
+   reserving a full-width row below it. */
+#players-area .your-seat .player-zones {
+  --zone-pile-gap: 0.45rem;
+  --zone-pile-width: calc(3 * var(--zone-card-width) + 2 * var(--zone-pile-gap));
+
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 40;
+  display: block;
+  width: 100%;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* Size the hand to its contents, not to the width of player-zones.
+   Center it in the available area to the left of the three piles. */
+#players-area .your-seat .player-zones .hand-zone {
+  position: absolute;
+  bottom: 0;
+  left: calc((100% - var(--zone-pile-width) - 1rem) / 2);
+  flex: none;
+  width: max-content;
+  max-width: calc(100% - var(--zone-pile-width) - 1rem);
+  margin: 0;
+  padding: 0;
+  transform: translateX(-50%);
+  overflow: visible;
+  pointer-events: auto;
+}
+
+#players-area .your-seat .player-zones .hand-strip {
+  width: max-content;
+  max-width: 100%;
+  height: var(--hand-peek-height);
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  justify-content: center;
+}
+
+/* Exactly three full card-sized piles in the bottom-right corner. */
+#players-area .your-seat .player-zones .zone-lanes {
+  position: absolute;
+  right: 0.45rem;
+  bottom: 0.45rem;
+  display: flex;
+  flex-wrap: nowrap;
+  width: max-content;
+  margin: 0;
+  padding: 0;
+  gap: var(--zone-pile-gap);
+  pointer-events: auto;
+}
+
+#players-area .your-seat .player-zones .zone-lane {
+  padding: 0;
+}
+
+/* Place the existing life controls immediately above the hand, centered
+   in the same left-side area. No markup or event handler changes. */
+#players-area .your-seat .zone-summary-life {
+  position: absolute;
+  bottom: calc(var(--hand-peek-height, 48px) + 0.5rem);
+  left: calc((100% - (3 * var(--zone-card-width, 98px) + 0.9rem) - 1rem) / 2);
+  margin: 0;
+  transform: translateX(-50%);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.18rem 0.4rem;
+  background: rgba(12, 26, 24, 0.88);
+  pointer-events: auto;
+}
+
+/* Stage 1 already uses smaller hand/pile cards on narrow viewports.
+   Keep the positioning calculations in sync with that smaller gap. */
+@media (max-width: 700px) {
+  #players-area .your-seat .player-zones {
+    --zone-pile-gap: 0.3rem;
+  }
+
+  #players-area .your-seat .zone-summary-life {
+    left: calc((100% - (3 * var(--zone-card-width, 68px) + 0.6rem) - 1rem) / 2);
+  }
+
+  #players-area .your-seat .zone-summary-actions {
+    max-width: 64%;
+  }
+}
