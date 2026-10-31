@@ -71,6 +71,14 @@ export function applyPlayerAction(options: ApplyPlayerActionOptions): Player {
       return keepOpeningHand(player)
     case "finishOpeningHand":
       return finishOpeningHand(player, action.instanceIds)
+    case "stage10DesignateCommander":
+      return stage10DesignateCommander(player, action.instanceId)
+    case "stage10PlayCommander":
+      return stage10PlayCommander(player)
+    case "stage10ReturnCommander":
+      return stage10ReturnCommander(player)
+    case "stage10ReselectCommander":
+      return stage10ReselectCommander(player, action.instanceId)
     case "drawCard":
       return drawCards({ player, count: action.count ?? 1 })
     case "shuffleLibrary":
@@ -178,6 +186,100 @@ function finishOpeningHand(player: Player, instanceIds: string[]): Player {
     library: [...player.library, ...bottomCards.filter((card): card is Card => card !== undefined)],
     openingHand: { ...state, phase: "kept" },
   }
+}
+
+// Stage 10A: one manually selected Commander; never duplicate the card.
+// Commands are server-authoritative because the optional offline mirror does
+// not understand these new actions yet.
+function stage10DesignateCommander(player: Player, instanceId: string): Player {
+  if (player.commanderInstanceId || player.deckStatus !== "loaded") return player
+  const sourceZones = ["library", "hand", "battlefield", "graveyard", "exile"] as const
+  const from = sourceZones.find((zone) => player[zone].some((card) => card.instanceId === instanceId))
+  if (!from) return player
+  const removal = removeCard({ player, zone: from, instanceId })
+  if (!removal) return player
+  const battlefield = from === "battlefield"
+    ? stage10UnlinkHost(removal.remainder.battlefield, instanceId)
+    : removal.remainder.battlefield
+  return {
+    ...removal.remainder,
+    battlefield,
+    commander: deckCard(removal.card),
+    commanderInstanceId: instanceId,
+  }
+}
+
+// Correct an accidental Commander choice without creating or losing cards.
+// Only available while the current Commander is in its command zone.
+// The former Commander takes the replacement card's exact old slot.
+function stage10ReselectCommander(player: Player, instanceId: string): Player {
+  const previous = player.commander
+  if (!previous || !player.commanderInstanceId || previous.instanceId === instanceId) return player
+  const zones = ["library", "hand", "battlefield", "graveyard", "exile"] as const
+  const from = zones.find((zone) => player[zone].some((card) => card.instanceId === instanceId))
+  if (!from) return player
+  const replacement = player[from].find((card) => card.instanceId === instanceId)
+  if (!replacement) return player
+  const oldCard = deckCard(previous)
+  if (from === "battlefield") {
+    const battlefield = stage10UnlinkHost(player.battlefield, instanceId).map((card) =>
+      card.instanceId === instanceId
+        ? battlefieldCard({ card: { ...oldCard, tapped: false }, x: card.x, y: card.y })
+        : card,
+    )
+    return {
+      ...player,
+      battlefield,
+      commander: deckCard(replacement),
+      commanderInstanceId: instanceId,
+    }
+  }
+  return {
+    ...player,
+    [from]: player[from].map((card) => card.instanceId === instanceId ? oldCard : card),
+    commander: deckCard(replacement),
+    commanderInstanceId: instanceId,
+  }
+}
+
+function stage10PlayCommander(player: Player): Player {
+  if (!player.commander || !player.commanderInstanceId) return player
+  const card = player.commander
+  const { commander: _commander, ...remainder } = player
+  return {
+    ...remainder,
+    battlefield: [
+      ...player.battlefield,
+      battlefieldCard({ card: { ...card, tapped: false }, ...freePlayPosition(player.battlefield) }),
+    ],
+  }
+}
+
+function stage10ReturnCommander(player: Player): Player {
+  const id = player.commanderInstanceId
+  if (!id || player.commander) return player
+  const zones = ["battlefield", "graveyard", "exile", "hand", "library"] as const
+  const from = zones.find((zone) => player[zone].some((card) => card.instanceId === id))
+  if (!from) return player
+  const removal = removeCard({ player, zone: from, instanceId: id })
+  if (!removal) return player
+  return {
+    ...removal.remainder,
+    battlefield: from === "battlefield"
+      ? stage10UnlinkHost(removal.remainder.battlefield, id)
+      : removal.remainder.battlefield,
+    commander: deckCard(removal.card),
+  }
+}
+
+// An attached Aura/Equipment must not retain a dangling host reference when
+// the Commander moves to its command zone. The attachments remain in play.
+function stage10UnlinkHost(cards: BattlefieldCard[], instanceId: string): BattlefieldCard[] {
+  return cards.map((card) => {
+    if (card.attachedTo !== instanceId) return card
+    const { attachedTo: _oldHost, ...detached } = card
+    return detached
+  })
 }
 
 function drawCards(options: { player: Player; count: number }): Player {

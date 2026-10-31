@@ -114,6 +114,7 @@ function start(game) {
 
   wireActions(game, actorId)
   wireStage9Mulligan(actorId)
+  wireStage10Commander(actorId)
   wireLandStackTap(actorId)
   wireStage8cCardMenu()
   wireStage8Attachments(actorId)
@@ -1900,6 +1901,42 @@ function wireStage9Mulligan(actorId) {
       await postAction(actorId, action, newGestureKey())
     } finally {
       if (clicked.isConnected) clicked.disabled = false
+    }
+  })
+}
+
+
+// ===== Stage 10A: Commander zone client controls =====
+// New actions go directly to the server, bypassing the optional offline
+// move mirror until it knows how to reconcile command-zone transitions.
+function wireStage10Commander(actorId) {
+  document.addEventListener('click', async (event) => {
+    const button = event.target.closest?.('[data-stage10-designate], [data-stage10-play], [data-stage10-return], [data-stage10-reselect]')
+    if (!button) return
+    const zone = button.closest('.your-seat [data-stage10-zone]')
+    if (!zone || button.disabled) return
+    event.preventDefault()
+    event.stopPropagation()
+    let action = null
+    if (button.hasAttribute('data-stage10-designate')) {
+      const instanceId = zone.querySelector('[data-stage10-selection]')?.value
+      if (!instanceId) return
+      action = { type: 'stage10DesignateCommander', instanceId }
+    } else if (button.hasAttribute('data-stage10-reselect')) {
+      const instanceId = zone.querySelector('[data-stage10-reselection]')?.value
+      if (!instanceId) return
+      action = { type: 'stage10ReselectCommander', instanceId }
+    } else if (button.hasAttribute('data-stage10-play')) {
+      action = { type: 'stage10PlayCommander' }
+    } else if (button.hasAttribute('data-stage10-return')) {
+      action = { type: 'stage10ReturnCommander' }
+    }
+    if (!action) return
+    button.disabled = true
+    try {
+      await postAction(actorId, action, newGestureKey())
+    } finally {
+      if (button.isConnected) button.disabled = false
     }
   })
 }

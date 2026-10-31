@@ -235,7 +235,7 @@ export class GameRoom extends Actor {
     if (!player) return
     if (player.deckRequestId !== options.arguments.deckRequestId) return
 
-    const { openingHand: _previousOpening, ...freshPlayer } = player
+    const { openingHand: _previousOpening, commander: _previousCommander, commanderInstanceId: _previousCommanderId, ...freshPlayer } = player
     this.#replacePlayer({
       room,
       player: {

@@ -130,6 +130,54 @@ function renderStage9Opening(player: PublicPlayer, isCurrentPlayer: boolean): st
   </section>`
 }
 
+// Stage 10A: command-zone state is public, but hidden library/hand contents
+// are offered only to the owner. Commander selection is manual for now.
+function renderStage10Commander(player: PublicPlayer, isCurrentPlayer: boolean): string {
+  const current = player.commander
+  const identified = player.commanderInstanceId
+  let body = ""
+  if (current) {
+    body = `<div class="stage10-card" ${previewAttributes(current)}>${cardFace(current)}</div>` +
+      (isCurrentPlayer ? `<button type="button" data-stage10-play>Play commander</button>` : "")
+    if (isCurrentPlayer && player.deckStatus === "loaded") {
+      const alternatives = (["library", "hand", "battlefield", "graveyard", "exile"] as const)
+        .flatMap((zone) => player[zone].map((card) => ({ zone, card })))
+        .filter(({ card }) => card.instanceId !== current.instanceId)
+        .sort((a, b) => a.card.name.localeCompare(b.card.name))
+        .map(({ zone, card }) =>
+          `<option value="${attribute(card.instanceId)}">${escapeHtml(card.name)} (${zone})</option>`)
+        .join("")
+      if (alternatives) {
+        body += `<details class="stage10-choose stage10-reselect">
+          <summary>Change commander</summary>
+          <select data-stage10-reselection aria-label="Choose replacement commander">${alternatives}</select>
+          <button type="button" data-stage10-reselect>Confirm change</button>
+        </details>`
+      }
+    }
+  } else if (identified) {
+    body = `<span class="stage10-away">Commander elsewhere</span>` +
+      (isCurrentPlayer ? `<button type="button" data-stage10-return>Return to command zone</button>` : "")
+  } else if (isCurrentPlayer && player.deckStatus === "loaded") {
+    const options = (["library", "hand", "battlefield", "graveyard", "exile"] as const)
+      .flatMap((zone) => player[zone].map((card) => ({ zone, card })))
+      .sort((a, b) => a.card.name.localeCompare(b.card.name))
+      .map(({ zone, card }) =>
+        `<option value="${attribute(card.instanceId)}">${escapeHtml(card.name)} (${zone})</option>`)
+      .join("")
+    body = options ? `<details class="stage10-choose">
+      <summary>Choose commander</summary>
+      <select data-stage10-selection aria-label="Select your Commander">${options}</select>
+      <button type="button" data-stage10-designate>Set commander</button>
+    </details>` : `<span class="stage10-away">Load a deck first</span>`
+  } else {
+    body = `<span class="stage10-away">No commander</span>`
+  }
+  return `<aside class="stage10-command-zone" data-stage10-zone="true" data-stage10-owner="${isCurrentPlayer}">
+    <strong>Command zone</strong>${body}
+  </aside>`
+}
+
 function renderPlayer(options: {
   context: ComponentRenderContext
   seat: number
@@ -180,6 +228,7 @@ function renderPlayer(options: {
       ${isCurrentPlayer ? "" : playerDetails}
 
       ${renderBattlefield({ player, isCurrentPlayer })}
+  ${renderStage10Commander(player, isCurrentPlayer)}
   ${renderStage9Opening(player, isCurrentPlayer)}
 
       ${isCurrentPlayer ? playerDetails : ""}

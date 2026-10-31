@@ -63,6 +63,8 @@ export type Player = {
   isSearchingDeck: boolean
   openingHand?: OpeningHandState
   appliedMove: number
+  commander?: Card
+  commanderInstanceId?: string
 }
 
 export type Room = {
@@ -102,6 +104,8 @@ export type PublicPlayer = {
   isSearchingDeck: boolean
   openingHand?: OpeningHandState
   appliedMove: number
+  commander?: PublicCard
+  commanderInstanceId?: string
 }
 
 export type PublicRoom = {

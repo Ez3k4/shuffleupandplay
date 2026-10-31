@@ -3,6 +3,10 @@ import { DECK_POSITIONS, ZONE_NAMES, type DeckPosition, type ZoneName } from "./
 export type GameAction =
   | { type: "drawCard"; count?: number }
   | { type: "shuffleLibrary" }
+  | { type: "stage10DesignateCommander"; instanceId: string }
+  | { type: "stage10PlayCommander" }
+  | { type: "stage10ReturnCommander" }
+  | { type: "stage10ReselectCommander"; instanceId: string }
   | { type: "beginOpeningHand"; format: "commander" | "standard" }
   | { type: "redrawOpeningHand" }
   | { type: "keepOpeningHand" }
@@ -58,6 +62,16 @@ const BUILDERS: Record<GameActionType, Builder> = {
     return { type: "drawCard", count: attributes.count }
   },
   shuffleLibrary: () => ({ type: "shuffleLibrary" }),
+  stage10DesignateCommander: (attrs) => {
+    const instanceId = textIdentifier(attrs.instanceId)
+    return instanceId ? { type: "stage10DesignateCommander", instanceId } : null
+  },
+  stage10PlayCommander: () => ({ type: "stage10PlayCommander" }),
+  stage10ReturnCommander: () => ({ type: "stage10ReturnCommander" }),
+  stage10ReselectCommander: (attrs) => {
+    const instanceId = textIdentifier(attrs.instanceId)
+    return instanceId ? { type: "stage10ReselectCommander", instanceId } : null
+  },
   beginOpeningHand: (attrs) => attrs.format === "commander" || attrs.format === "standard"
     ? { type: "beginOpeningHand", format: attrs.format } : null,
   redrawOpeningHand: () => ({ type: "redrawOpeningHand" }),

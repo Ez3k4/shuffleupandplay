@@ -3334,3 +3334,110 @@ main.layout[data-game] #players-area .player-zones {
   #players-area .stage9-opening-panel { top: 2rem; padding: 0.6rem; }
   #players-area .stage9-bottom-cards { grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); }
 }
+
+
+/* ===== Stage 10A: command zone and accessible opening panel ===== */
+/* Keep the mulligan confirmation controls available inside short player rows.
+ * The panel stays within the player's section to avoid covering the opponent.
+ * Only the middle card grid scrolls; the final action row remains visible. */
+#players-area .player-section .stage9-opening-panel {
+  top: 0.3rem;
+  max-height: calc(100% - 0.6rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  z-index: 650;
+}
+#players-area .stage9-bottoming .stage9-bottom-cards {
+  max-height: min(20dvh, 180px);
+  min-height: 0;
+}
+#players-area .stage9-opening-panel .stage9-buttons {
+  position: sticky;
+  bottom: -0.85rem;
+  z-index: 2;
+  padding: 0.55rem 0;
+  background: rgba(18, 30, 32, 0.99);
+}
+@media (max-height: 650px) {
+  #players-area .stage9-bottoming .stage9-bottom-cards { max-height: 110px; }
+}
+/* The command zone uses the already reserved right-hand battlefield strip,
+ * so normalized card positions remain clear of it on different screen sizes. */
+#players-area .player-section .stage10-command-zone {
+  position: absolute;
+  top: 3rem;
+  right: 0.5rem;
+  z-index: 45;
+  width: clamp(86px, 9vw, 128px);
+  max-height: calc(100% - 5rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  overflow: visible;
+  padding: 0.4rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: rgba(17, 30, 29, 0.92);
+  box-shadow: 0 7px 18px rgba(0,0,0,0.35);
+}
+#players-area .stage10-command-zone > strong {
+  font-size: 0.7rem;
+  text-align: center;
+  color: #ebdfc8;
+}
+#players-area .stage10-command-zone .stage10-card {
+  width: min(82px, 100%);
+  aspect-ratio: 488 / 680;
+  overflow: hidden;
+  border-radius: 6px;
+}
+#players-area .stage10-command-zone .stage10-card img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+#players-area .stage10-command-zone .stage10-card span { display: none; }
+#players-area .stage10-command-zone button {
+  font-size: 0.65rem;
+  padding: 0.3rem 0.35rem;
+  width: 100%;
+  box-shadow: none;
+}
+#players-area .stage10-command-zone .stage10-away {
+  color: var(--muted); font-size: 0.7rem; text-align: center;
+}
+#players-area .stage10-command-zone .stage10-choose { width: 100%; }
+#players-area .stage10-command-zone .stage10-choose > summary {
+  cursor: pointer; font-size: 0.67rem; text-align: center;
+}
+#players-area .stage10-command-zone .stage10-choose select {
+  width: 100%; min-width: 0; padding: 0.25rem; margin-top: 0.4rem;
+  font-size: 0.7rem;
+}
+@media (max-width: 700px) {
+  #players-area .player-section .stage10-command-zone { right: 0.2rem; top: 2.9rem; width: 78px; padding: 0.2rem; }
+  #players-area .stage10-command-zone .stage10-card { width: 62px; }
+}
+
+/* ===== Stage 10B: Commander correction and opponent position ===== */
+/* The opponent's Library / Graveyard / Exile sit along the upper-right edge.
+   Anchor their Command Zone at the LOWER right to avoid that overlap.
+   Keep our own command zone in its established upper-right position. */
+#players-area .opponent-seat .stage10-command-zone {
+  top: auto;
+  bottom: 0.55rem;
+  width: clamp(74px, 8vw, 104px);
+}
+/* Opponent cards are read-only, so a smaller preview keeps the slot compact. */
+#players-area .opponent-seat .stage10-command-zone .stage10-card {
+  width: min(64px, 100%);
+}
+/* Use the existing compact commander-choice styling for reselection. */
+#players-area .stage10-command-zone .stage10-reselect {
+  width: 100%;
+}
+@media (max-width: 700px) {
+  #players-area .opponent-seat .stage10-command-zone {
+    top: auto;
+    bottom: 0.25rem;
+  }
+}

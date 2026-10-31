@@ -117,6 +117,8 @@ function publicPlayer(options: { player: Player; sessionId: string | null }): Pu
     deckName: player.deckName,
     deckStatus: player.deckStatus,
     battlefield: player.battlefield,
+    ...(player.commander ? { commander: player.commander } : {}),
+    ...(player.commanderInstanceId ? { commanderInstanceId: player.commanderInstanceId } : {}),
     graveyard: player.graveyard,
     exile: player.exile,
     isSearchingDeck: player.isSearchingDeck,
