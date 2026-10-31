@@ -2930,3 +2930,194 @@ main.layout[data-game] #players-area .player-zones {
 #players-area .opponent-seat .zone-summary-life {
   pointer-events: none;
 }
+
+/* ===== Stage 7: fixed, stacked land lane ===== */
+/*
+ * Lands stay as independent battlefield cards, but render in a compact,
+ * position-independent row. Opponent's lands are displayed on their board,
+ * with no actionable controls for the viewing player.
+ *
+ * Leave the existing nonland battlefield canvas and Stage 6 normalized
+ * positions intact. The land zone is an overlay, not a new server zone.
+ */
+#players-area .battlefield-canvas {
+  --stage7-land-width: 76px;
+  --stage7-land-height: 107px;
+}
+
+#players-area .stage7-land-zone {
+  position: absolute;
+  z-index: 25;
+  left: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  max-width: calc(100% - var(--tabletop-pile-reserve, 330px) - 0.8rem);
+  gap: 0.2rem;
+  padding: 0.3rem 0.45rem 0.4rem;
+  border: 1px solid rgba(215, 195, 151, 0.36);
+  border-radius: 10px;
+  background: rgba(10, 31, 25, 0.80);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(3px);
+}
+
+#players-area .your-seat .stage7-land-zone {
+  bottom: calc(var(--hand-peek-height, 48px) + 0.55rem);
+}
+
+/* Opponent sits opposite you: their lands are closest to their top edge. */
+#players-area .opponent-seat .stage7-land-zone {
+  top: 2.5rem;
+}
+
+#players-area .stage7-land-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  color: #dbe8d4;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+#players-area .stage7-land-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 0.38rem;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  padding: 0.2rem 0.4rem 0.3rem 0.1rem;
+}
+
+/* A stack occupies roughly one small card's width, regardless of copies. */
+#players-area .stage7-land-stack {
+  position: relative;
+  flex: 0 0 var(--stage7-land-width);
+  width: var(--stage7-land-width);
+  height: var(--stage7-land-height);
+  min-width: 0;
+  isolation: isolate;
+}
+
+#players-area .stage7-land-stack:focus-within,
+#players-area .stage7-land-stack:hover {
+  z-index: 30;
+}
+
+#players-area .stage7-land-card.battlefield-card {
+  position: absolute;
+  top: calc(var(--stage7-stack-index) * 2px);
+  left: calc(var(--stage7-stack-index) * 3px);
+  width: 66px;
+  height: 94px;
+  border-radius: 6px;
+  cursor: pointer;
+  touch-action: auto;
+  box-shadow: 1px 2px 0 #4b544b, 0 5px 10px rgba(0,0,0,0.4);
+}
+
+#players-area .stage7-land-card.battlefield-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The tapped card remains individually identifiable within the stack. */
+#players-area .stage7-land-card.battlefield-card.tapped {
+  border-color: #e6be70;
+  filter: brightness(0.73);
+  transform: rotate(8deg);
+}
+
+/* Expand a stack horizontally on hover/focus to reach each distinct card. */
+#players-area .stage7-land-stack:hover .stage7-land-card,
+#players-area .stage7-land-stack:focus-within .stage7-land-card {
+  left: calc(var(--stage7-stack-index) * 15px);
+}
+
+#players-area .stage7-land-count {
+  position: absolute;
+  z-index: 15;
+  right: -0.2rem;
+  bottom: 0;
+  padding: 0.15rem 0.36rem;
+  border: 1px solid rgba(239, 218, 167, 0.68);
+  border-radius: 999px;
+  background: #14281f;
+  color: #f4eedb;
+  font-size: 0.69rem;
+  font-weight: 700;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* Right-click tools remain attached to the actual card instance. */
+#players-area .stage7-land-card.card-tools-open {
+  overflow: visible;
+  z-index: 40;
+}
+#players-area .stage7-land-card.card-tools-open > .card-tools {
+  display: grid;
+  bottom: 100%;
+  top: auto;
+  left: 0;
+  z-index: 45;
+}
+
+/* The land context menu lives outside the scrollable battlefield, so no
+ * right-click actions are clipped by the compact lane. */
+.stage7-land-menu {
+  position: fixed;
+  z-index: 12000;
+  width: 212px;
+  padding: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: #19252a;
+  box-shadow: 0 12px 34px rgba(0,0,0,0.67);
+}
+.stage7-land-menu[hidden] { display: none !important; }
+.stage7-land-menu strong { padding: 0.25rem 0.3rem; font-size: 0.85rem; }
+.stage7-land-menu label { display: grid; gap: 0.2rem; font-size: 0.75rem; color: #e5dbc8; }
+.stage7-land-menu select { padding: 0.3rem; max-width: 100%; }
+.stage7-land-menu button {
+  display: block;
+  border: 0;
+  padding: 0.4rem 0.55rem;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  color: #f1e9d6;
+  text-align: left;
+  font-size: 0.84rem;
+}
+.stage7-land-menu button:hover { background: rgba(196,156,75,0.2); }
+
+@media (max-width: 700px) {
+  #players-area .battlefield-canvas {
+    --stage7-land-width: 58px;
+    --stage7-land-height: 88px;
+  }
+  #players-area .stage7-land-zone {
+    gap: 0.12rem;
+    padding: 0.22rem;
+    left: 0.3rem;
+  }
+  #players-area .stage7-land-card.battlefield-card {
+    width: 49px;
+    height: 69px;
+  }
+  #players-area .opponent-seat .stage7-land-zone {
+    top: 2.15rem;
+  }
+}

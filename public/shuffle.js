@@ -113,6 +113,7 @@ function start(game) {
   })
 
   wireActions(game, actorId)
+  wireLandStackTap(actorId)
   wireDeckForms(game, actorId)
   wireCardPreview()
   wireLibraryFilter()
@@ -458,6 +459,8 @@ function newGestureKey() {
 let drag = null
 
 function beginDrag(event, game) {
+  // Land stacks are fixed UI objects; their copy is selected by clicking.
+  if (event.target.closest?.(".stage7-land-zone")) return
   if (event.button !== 0) return
   const palette = event.target.closest("[data-counter-palette]")
   if (palette) {
@@ -618,7 +621,7 @@ function finishDrag(event, actorId) {
     return void sendAction(actorId, { type: "toggleTap", instanceId: current.instanceId })
   }
 
-  if (cardOverlapsPile(current.element)) {
+  if (cardOverlapsPile(current.element) || cardOverlapsLandZone(current.element)) {
     current.element.style.left = `${current.startLeft}px`
     current.element.style.top = `${current.startTop}px`
     showToast("Move cancelled: card piles occupy this area.")
@@ -1443,4 +1446,90 @@ function tabletopLogicalPosition(card, position) {
     x: maxLeft ? Math.round(clamp(position.left / maxLeft, 0, 1) * 1200) : 0,
     y: maxTop ? Math.round(clamp(position.top / maxTop, 0, 1) * 700) : 0,
   }
+}
+
+// ===== Stage 7: land-stack interaction without a new rules engine =====
+// The individual copies retain their original instanceIds in game state.
+// Click a copy to tap/untap. Right-click a stack to select a particular
+// copy for the original move/tap/counter actions. Fixed stacks do not drag.
+function wireLandStackTap(actorId) {
+  const menu = document.createElement('div')
+  menu.className = 'stage7-land-menu'
+  menu.hidden = true
+  menu.innerHTML = `
+    <strong class="stage7-land-menu-title">Land actions</strong>
+    <label>Copy <select class="stage7-land-select"></select></label>
+    <button type="button" data-land-choice="tap">Tap / Untap</button>
+    <button type="button" data-land-choice="hand">Move to hand</button>
+    <button type="button" data-land-choice="graveyard">Move to graveyard</button>
+    <button type="button" data-land-choice="exile">Move to exile</button>
+    <button type="button" data-land-choice="library">Shuffle into library</button>
+    <button type="button" data-land-choice="counter">Add +1/+1 counter</button>
+  `
+  document.body.append(menu)
+  const selected = menu.querySelector('.stage7-land-select')
+  let menuOpen = false
+
+  function closeMenu() {
+    menu.hidden = true
+    menuOpen = false
+  }
+
+  document.addEventListener('click', (event) => {
+    if (menuOpen && !menu.contains(event.target)) closeMenu()
+    const card = event.target.closest?.('.stage7-land-card')
+    if (!card || event.target.closest('.card-tools, .counter-chip, button')) return
+    if (card.closest('.player-section')?.dataset.currentPlayer !== 'true') return
+    event.preventDefault()
+    void sendAction(actorId, { type: 'toggleTap', instanceId: card.dataset.instanceId })
+  })
+
+  // Capture right-click before the generic battlefield tool handler.
+  document.addEventListener('contextmenu', (event) => {
+    const card = event.target.closest?.('.stage7-land-card')
+    if (!card || card.closest('.player-section')?.dataset.currentPlayer !== 'true') return
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    const stack = card.closest('.stage7-land-stack')
+    const copies = [...stack.querySelectorAll('.stage7-land-card')]
+    selected.replaceChildren(...copies.map((copy, i) => {
+      const state = copy.classList.contains('tapped') ? 'tapped' : 'untapped'
+      return new Option(`Copy ${i + 1} (${state})`, copy.dataset.instanceId)
+    }))
+    selected.value = card.dataset.instanceId
+    menu.querySelector('.stage7-land-menu-title').textContent = card.dataset.previewName ?? 'Land actions'
+    menu.hidden = false
+    menuOpen = true
+    const rect = menu.getBoundingClientRect()
+    menu.style.left = `${Math.max(8, Math.min(event.clientX, window.innerWidth - rect.width - 8))}px`
+    menu.style.top = `${Math.max(8, Math.min(event.clientY, window.innerHeight - rect.height - 8))}px`
+  }, true)
+
+  menu.addEventListener('click', (event) => {
+    const choice = event.target.closest?.('[data-land-choice]')?.dataset.landChoice
+    if (!choice || !selected.value) return
+    const instanceId = selected.value
+    const action = choice === 'tap' ? { type: 'toggleTap', instanceId }
+      : choice === 'library' ? { type: 'moveToDeck', instanceId, from: 'battlefield', position: 'shuffle' }
+      : choice === 'counter' ? { type: 'addCounter', instanceId, x: 8, y: 8, label: '+1/+1' }
+      : { type: 'moveCardZone', instanceId, from: 'battlefield', to: choice }
+    closeMenu()
+    void sendAction(actorId, action)
+  })
+  document.addEventListener('pointerdown', (event) => {
+    if (menuOpen && !menu.contains(event.target) && !event.target.closest?.('.stage7-land-card')) closeMenu()
+  })
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeMenu()
+  })
+  window.addEventListener('scroll', closeMenu, true)
+}
+
+// Reject drops behind the floating land lane, just like Stage 3 does for piles.
+function cardOverlapsLandZone(card) {
+  const zone = card.closest('.player-section')?.querySelector('.stage7-land-zone')
+  if (!zone) return false
+  const a = card.getBoundingClientRect()
+  const b = zone.getBoundingClientRect()
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
 }

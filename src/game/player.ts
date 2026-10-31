@@ -362,6 +362,7 @@ function deckCard(card: Card): Card {
     imageUrl: card.imageUrl,
     tapped: card.tapped,
     isManaSource: card.isManaSource,
+    ...(card.isLand !== undefined ? { isLand: card.isLand } : {}),
   }
 }
 

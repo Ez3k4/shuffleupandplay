@@ -17,6 +17,8 @@ export type Card = {
   imageUrl: string
   tapped: boolean
   isManaSource: boolean
+  /** Visible face is a land. Optional for saved decks created before Stage 7. */
+  isLand?: boolean
 }
 
 export type CardCounter = {

@@ -269,15 +269,18 @@ function renderBattlefield(options: {
   isCurrentPlayer: boolean
 }): string {
   const cards = options.player.battlefield
+    .filter((card) => !isLandCard(card))
     .map((card) => renderBattlefieldCard({ card, isCurrentPlayer: options.isCurrentPlayer }))
     .join("")
+  const lands = renderLandZone(options)
 
-  return `<div class="battlefield"><div class="battlefield-canvas" data-battlefield-player-id="${attribute(options.player.id)}">${cards}</div></div>`
+  return `<div class="battlefield"><div class="battlefield-canvas" data-battlefield-player-id="${attribute(options.player.id)}">${cards}${lands}</div></div>`
 }
 
 function renderBattlefieldCard(options: {
   card: PublicBattlefieldCard
   isCurrentPlayer: boolean
+  landStackIndex?: number
 }): string {
   const { card, isCurrentPlayer } = options
   const tools = isCurrentPlayer ? renderCardTools(card) : ""
@@ -307,10 +310,63 @@ function renderBattlefieldCard(options: {
     })
     .join("")
 
-  return `<div class="battlefield-card${card.tapped ? " tapped" : ""}" data-instance-id="${attribute(card.instanceId)}" ${previewAttributes(card)} style="left:calc(var(--tabletop-travel-x) * ${card.x / 1200});top:calc(var(--tabletop-travel-y) * ${card.y / 700})">
+  const isLandStackCard = options.landStackIndex !== undefined
+  const position = isLandStackCard
+    ? `--stage7-stack-index:${options.landStackIndex}`
+    : `left:calc(var(--tabletop-travel-x) * ${card.x / 1200});top:calc(var(--tabletop-travel-y) * ${card.y / 700})`
+  const landClass = isLandStackCard ? " stage7-land-card" : ""
+  return `<div class="battlefield-card${card.tapped ? " tapped" : ""}${landClass}" data-instance-id="${attribute(card.instanceId)}" ${previewAttributes(card)} style="${position}">
   <img loading="lazy" src="${attribute(card.imageUrl)}" alt="${attribute(card.name)}" />
   <div class="card-tools">${tools}</div>${counters}
 </div>`
+}
+
+// Land is a subtype-independent card type, NOT the same as "produces mana".
+// A non-land mana rock must remain on the ordinary battlefield.
+function isLandCard(card: PublicBattlefieldCard): boolean {
+  // Always recognize basic lands, including decks imported with isLand: false.
+  if (/^(?:Snow-Covered )?(?:Plains|Island|Swamp|Mountain|Forest|Wastes)$/i.test(card.name.trim())) return true
+  // Avoid treating mana-producing nonlands (such as Sol Ring) as lands.
+  return card.isLand === true
+}
+
+// Only the HTML layout is grouped. Every card keeps its instanceId, tap state,
+// counters and independent move actions in the shared player.battlefield array.
+function renderLandZone(options: {
+  player: PublicPlayer
+  isCurrentPlayer: boolean
+}): string {
+  const groups = new Map<string, PublicBattlefieldCard[]>()
+  for (const card of options.player.battlefield) {
+    if (!isLandCard(card)) continue
+    const key = card.name.trim().toLocaleLowerCase("en")
+    const group = groups.get(key) ?? []
+    group.push(card)
+    groups.set(key, group)
+  }
+  if (!groups.size) return ""
+
+  const stacks = [...groups.values()].map((cards) => {
+    // Render tapped copies at the back so untapped copies are easy to select.
+    const sorted = [...cards].sort((a, b) => Number(b.tapped) - Number(a.tapped))
+    const faces = sorted
+      .map((card, index) => renderBattlefieldCard({
+        card,
+        isCurrentPlayer: options.isCurrentPlayer,
+        landStackIndex: Math.min(index, 3),
+      }))
+      .join("")
+    const tappedCount = cards.filter((card) => card.tapped).length
+    return `<div class="stage7-land-stack" title="${attribute(cards[0]?.name ?? "Land")}" aria-label="${attribute(cards[0]?.name ?? "Land")}, ${cards.length} copies, ${tappedCount} tapped">
+      ${faces}
+      <span class="stage7-land-count">${tappedCount ? `${tappedCount}/` : ""}${cards.length}</span>
+    </div>`
+  }).join("")
+  const total = [...groups.values()].reduce((sum, cards) => sum + cards.length, 0)
+  return `<div class="stage7-land-zone" aria-label="Land area">
+    <div class="stage7-land-title"><span>Lands</span><span>${total}</span></div>
+    <div class="stage7-land-row">${stacks}</div>
+  </div>`
 }
 
 function renderCardTools(card: PublicBattlefieldCard): string {

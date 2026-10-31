@@ -236,7 +236,34 @@ function expandCard(entry: Record<string, unknown>): Card[] {
     imageUrl: scryfallImageUrl(scryfallId),
     tapped: false,
     isManaSource: isManaSource(oracleCard),
+    isLand: isLandType({ card, oracleCard, name }),
   }))
+}
+
+// Archidekt can expose printed/oracle type information in different fields.
+// The basic-land fallback also covers imported cards without type metadata.
+function isLandType(options: {
+  card: Record<string, unknown> | null
+  oracleCard: Record<string, unknown> | null
+  name: string
+}): boolean {
+  if (/^(?:Snow-Covered )?(?:Plains|Island|Swamp|Mountain|Forest|Wastes)$/i.test(options.name.trim())) {
+    return true
+  }
+  const fields: unknown[] = [
+    options.oracleCard?.typeLine,
+    options.oracleCard?.type_line,
+    options.oracleCard?.types,
+    options.card?.typeLine,
+    options.card?.type_line,
+    options.card?.types,
+  ]
+  return fields.some((field) => {
+    if (Array.isArray(field)) {
+      return field.some((value) => typeof value === "string" && /\bLand\b/i.test(value))
+    }
+    return typeof field === "string" && /\bLand\b/i.test(field.split("//")[0] ?? "")
+  })
 }
 
 function isManaSource(oracleCard: Record<string, unknown> | null): boolean {
