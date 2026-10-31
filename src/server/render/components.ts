@@ -425,7 +425,7 @@ function renderBattlefieldCard(options: {
   const isLandStackCard = options.landStackIndex !== undefined
   const position = isLandStackCard
     ? `--stage7-stack-index:${options.landStackIndex}`
-    : `left:calc(var(--tabletop-travel-x) * ${card.x / 1200});top:calc(var(--tabletop-travel-y) * ${card.y / 700})`
+    : `left:calc(var(--tabletop-travel-x) * ${card.x / 1200});top:calc(var(--tabletop-travel-y) * ${(options.isCurrentPlayer ? card.y : 700 - card.y) / 700})`
   const landClass = isLandStackCard ? " stage7-land-card" : ""
   return `<div class="battlefield-card${card.tapped ? " tapped" : ""}${landClass}${card.attachedTo ? " stage8-attached" : ""}${options.hasAttachments ? " stage8-attachment-host" : ""}" data-instance-id="${attribute(card.instanceId)}" data-stage8b-attachable="${card.isAttachment === true ? "true" : "false"}" ${previewAttributes(card)} style="${position};--stage8c-attach-x:${23 + Math.min(options.attachmentIndex ?? 0, 8) * 26}px;--stage8c-attach-y:${31 + Math.min(options.attachmentIndex ?? 0, 8) * 16}px">
   <img loading="lazy" src="${attribute(card.imageUrl)}" alt="${attribute(card.name)}" />

@@ -1940,3 +1940,103 @@ function wireStage10Commander(actorId) {
     }
   })
 }
+
+// ===== Stage 11E: resize after every three additional nonland permanents =====
+// First 6 independent permanents stay large; after that reserve space for
+// another group of three: 7-9, 10-12, 13-15, etc. Attached cards and the
+// separate land lane do not count as independent board slots.
+function wireStage11FourCardTiers(gameRoot) {
+  const root = document.documentElement
+  const previous = { you: null, opponent: null }
+  const observedCanvases = { you: null, opponent: null }
+  let scheduled = false
+  const resizeObserver = typeof ResizeObserver === 'function'
+    ? new ResizeObserver(schedule)
+    : null
+
+  function tierFor(count) {
+    return count <= 6 ? 0 : Math.ceil((count - 6) / 3)
+  }
+
+  // At 7-9 cards, retain the prior 10-slot shrink; 10-12 cards use 14 slots.
+  // Cards are NOT automatically rearranged: this is the space they COULD use.
+  function targetSlots(tier) {
+    return tier === 0 ? 6 : 6 + 4 * tier
+  }
+
+  function widthFor(canvas, seat, tier) {
+    // Keep the original Stage 11C large-card limit, including viewport height.
+    const largeLimit = Math.max(72, Math.min(
+      window.innerWidth * 0.12,
+      window.innerHeight * 0.21,
+      176
+    ))
+    if (tier === 0) return Math.round(largeLimit)
+
+    // Match Stage 6's drag boundary: canvas width minus actual piles and 16px.
+    const piles = seat.querySelector('.zone-lanes')
+    const pileWidth = piles?.getBoundingClientRect().width ?? 0
+    const usableWidth = Math.max(0, canvas.clientWidth - pileWidth - 16)
+    const slots = targetSlots(tier)
+    const gap = 4 // modest separation between adjacent card images
+    const fitWidth = Math.floor((usableWidth - (slots - 1) * gap) / slots)
+
+    // Protect readability on very narrow boards. Beyond this limit, a single
+    // horizontal row cannot hold every card; players can use multiple rows.
+    return Math.round(Math.max(44, Math.min(largeLimit, fitWidth)))
+  }
+
+  function update() {
+    const locations = [
+      ['you', '#players-area .your-seat', 'Your'],
+      ['opponent', '#players-area .opponent-seat', 'Opponent']
+    ]
+    for (const [key, seatSelector, label] of locations) {
+      const seat = gameRoot.querySelector(seatSelector)
+      const canvas = seat?.querySelector('.battlefield-canvas')
+      if (!canvas) continue
+
+      if (resizeObserver && observedCanvases[key] !== canvas) {
+        if (observedCanvases[key]) resizeObserver.unobserve(observedCanvases[key])
+        resizeObserver.observe(canvas)
+        observedCanvases[key] = canvas
+      }
+
+      const count = canvas.querySelectorAll(
+        ':scope > .battlefield-card:not(.stage7-land-card):not(.stage8-attached)'
+      ).length
+
+      // During partial DOM replacement the canvas can briefly be empty.
+      // Keep the existing size on the persistent root until cards reappear.
+      if (count === 0 && previous[key] !== null) continue
+
+      const tier = tierFor(count)
+      const width = widthFor(canvas, seat, tier)
+      if (!previous[key] || previous[key].tier !== tier || previous[key].width !== width) {
+        previous[key] = { tier, width }
+        // The root survives Turbo player-section replacements, preventing
+        // the old momentary resize when drawing from the library.
+        root.style.setProperty(`--stage11c-${key}-width`, `${width}px`)
+        root.dataset[`stage11d${label}Tier`] = String(tier)
+        root.dataset[`stage11c${label}Tier`] = String(tier)
+      }
+    }
+  }
+
+  function schedule() {
+    if (scheduled) return
+    scheduled = true
+    requestAnimationFrame(() => {
+      scheduled = false
+      update()
+    })
+  }
+
+  update()
+  // Observe additions/removals, not attribute or style changes.
+  new MutationObserver(schedule).observe(gameRoot, { childList: true, subtree: true })
+  window.addEventListener('resize', schedule)
+}
+
+const stage11dGame = document.querySelector('[data-game]')
+if (stage11dGame) wireStage11FourCardTiers(stage11dGame)
