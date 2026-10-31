@@ -74,6 +74,8 @@ export function applyPlayerAction(options: ApplyPlayerActionOptions): Player {
       return playFromHand({ player, instanceId: action.instanceId })
     case "toggleTap":
       return toggleTap({ player, instanceId: action.instanceId })
+    case "setAttachment":
+      return setAttachment({ player, instanceId: action.instanceId, targetInstanceId: action.targetInstanceId })
     case "moveBattlefieldCard":
       return moveBattlefieldCard({ player, instanceId: action.instanceId, x: action.x, y: action.y })
     case "moveCardZone":
@@ -143,6 +145,38 @@ function freePlayPosition(battlefield: BattlefieldCard[]): { x: number; y: numbe
   return PLAY_POSITION
 }
 
+// An attachment is a presentation relationship, not a separate zone.
+// Only one player's own battlefield is supported in this first stage.
+// Do not allow cycles, attachment-to-attachment, or attaching a card which
+// already has something attached to it; those cases need deeper layout logic.
+function setAttachment(options: {
+  player: Player
+  instanceId: string
+  targetInstanceId: string | null
+}): Player {
+  const { player, instanceId, targetInstanceId } = options
+  const source = player.battlefield.find((card) => card.instanceId === instanceId)
+  if (!source) return player
+  if (targetInstanceId === null) {
+    return {
+      ...player,
+      battlefield: player.battlefield.map((card) => {
+        if (card.instanceId !== instanceId) return card
+        const { attachedTo: _attachedTo, ...detached } = card
+        return detached
+      }),
+    }
+  }
+  const target = player.battlefield.find((card) => card.instanceId === targetInstanceId)
+  if (!target || target.instanceId === source.instanceId || target.attachedTo ||
+      player.battlefield.some((card) => card.attachedTo === source.instanceId)) return player
+  return {
+    ...player,
+    battlefield: player.battlefield.map((card) => card.instanceId === instanceId
+      ? { ...card, attachedTo: targetInstanceId, x: target.x, y: target.y } : card),
+  }
+}
+
 function toggleTap(options: { player: Player; instanceId: string }): Player {
   const { player, instanceId } = options
   return {
@@ -167,13 +201,17 @@ function moveBattlefieldCard(options: {
   y: number
 }): Player {
   const { player, instanceId } = options
+  const x = clamp(options.x, TABLE_RANGE.x)
+  const y = clamp(options.y, TABLE_RANGE.y)
   return {
     ...player,
-    battlefield: player.battlefield.map((card) =>
-      card.instanceId === instanceId
-        ? { ...card, x: clamp(options.x, TABLE_RANGE.x), y: clamp(options.y, TABLE_RANGE.y) }
-        : card,
-    ),
+    battlefield: player.battlefield.map((card) => {
+      if (card.instanceId === instanceId) {
+        const { attachedTo: _attachedTo, ...detached } = card
+        return { ...detached, x, y }
+      }
+      return card.attachedTo === instanceId ? { ...card, x, y } : card
+    }),
   }
 }
 
@@ -342,7 +380,19 @@ function removeCard(options: {
 
   return {
     card,
-    remainder: { ...player, [zone]: withoutCard({ cards: player[zone], instanceId }) },
+    remainder: {
+      ...player,
+      [zone]: withoutCard({ cards: player[zone], instanceId }),
+      ...(zone === "battlefield" ? {
+        battlefield: player.battlefield
+          .filter((candidate) => candidate.instanceId !== instanceId)
+          .map((candidate) => {
+            if (candidate.attachedTo !== instanceId) return candidate
+            const { attachedTo: _attachedTo, ...detached } = candidate
+            return detached
+          }),
+      } : {}),
+    },
   }
 }
 

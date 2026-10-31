@@ -270,7 +270,11 @@ function renderBattlefield(options: {
 }): string {
   const cards = options.player.battlefield
     .filter((card) => !isLandCard(card))
-    .map((card) => renderBattlefieldCard({ card, isCurrentPlayer: options.isCurrentPlayer }))
+    .map((card) => renderBattlefieldCard({
+      card,
+      isCurrentPlayer: options.isCurrentPlayer,
+      hasAttachments: options.player.battlefield.some((candidate) => candidate.attachedTo === card.instanceId),
+    }))
     .join("")
   const lands = renderLandZone(options)
 
@@ -281,9 +285,10 @@ function renderBattlefieldCard(options: {
   card: PublicBattlefieldCard
   isCurrentPlayer: boolean
   landStackIndex?: number
+  hasAttachments?: boolean
 }): string {
   const { card, isCurrentPlayer } = options
-  const tools = isCurrentPlayer ? renderCardTools(card) : ""
+  const tools = isCurrentPlayer ? renderCardTools(card) + renderStage8AttachmentTool(card) : ""
   const counters = card.counters
     .map((counter) => {
       const controls = isCurrentPlayer
@@ -315,7 +320,7 @@ function renderBattlefieldCard(options: {
     ? `--stage7-stack-index:${options.landStackIndex}`
     : `left:calc(var(--tabletop-travel-x) * ${card.x / 1200});top:calc(var(--tabletop-travel-y) * ${card.y / 700})`
   const landClass = isLandStackCard ? " stage7-land-card" : ""
-  return `<div class="battlefield-card${card.tapped ? " tapped" : ""}${landClass}" data-instance-id="${attribute(card.instanceId)}" ${previewAttributes(card)} style="${position}">
+  return `<div class="battlefield-card${card.tapped ? " tapped" : ""}${landClass}${card.attachedTo ? " stage8-attached" : ""}${options.hasAttachments ? " stage8-attachment-host" : ""}" data-instance-id="${attribute(card.instanceId)}" ${previewAttributes(card)} style="${position}">
   <img loading="lazy" src="${attribute(card.imageUrl)}" alt="${attribute(card.name)}" />
   <div class="card-tools">${tools}</div>${counters}
 </div>`
@@ -367,6 +372,13 @@ function renderLandZone(options: {
     <div class="stage7-land-title"><span>Lands</span><span>${total}</span></div>
     <div class="stage7-land-row">${stacks}</div>
   </div>`
+}
+
+function renderStage8AttachmentTool(card: PublicBattlefieldCard): string {
+  const name = attribute(card.name)
+  return card.attachedTo
+    ? `<button type="button" class="card-tool stage8-tool" data-stage8-detach="true" title="Detach ${name}">Unlink</button>`
+    : `<button type="button" class="card-tool stage8-tool" data-stage8-attach-start="true" title="Attach ${name} to another card">Attach</button>`
 }
 
 function renderCardTools(card: PublicBattlefieldCard): string {

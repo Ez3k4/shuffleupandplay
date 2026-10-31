@@ -88,6 +88,7 @@ export function seatFingerprints(room: Room): SeatFingerprint[] {
       ...summary,
       battlefield: (player?.battlefield ?? []).map((card) => ({
         instanceId: card.instanceId,
+        attachedTo: card.attachedTo ?? null,
         tapped: card.tapped,
         x: card.x,
         y: card.y,

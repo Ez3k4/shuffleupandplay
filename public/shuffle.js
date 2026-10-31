@@ -114,6 +114,7 @@ function start(game) {
 
   wireActions(game, actorId)
   wireLandStackTap(actorId)
+  wireStage8Attachments(actorId)
   wireDeckForms(game, actorId)
   wireCardPreview()
   wireLibraryFilter()
@@ -1532,4 +1533,84 @@ function cardOverlapsLandZone(card) {
   const a = card.getBoundingClientRect()
   const b = zone.getBoundingClientRect()
   return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
+}
+
+// ===== Stage 8A: persistent attachment selection =====
+// This is manual tabletop assistance rather than MTG targeting validation.
+// Only cards you control can be targets in this first version.
+function wireStage8Attachments(actorId) {
+  let sourceId = null
+  let sourceSeat = null
+
+  function clearSelection() {
+    sourceId = null
+    sourceSeat = null
+    document.querySelectorAll('.stage8-attach-source, .stage8-attach-target')
+      .forEach((card) => card.classList.remove('stage8-attach-source', 'stage8-attach-target'))
+  }
+
+  document.addEventListener('click', (event) => {
+    const start = event.target.closest?.('[data-stage8-attach-start]')
+    if (start) {
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      clearSelection()
+      const card = start.closest('.battlefield-card')
+      if (!card || card.closest('.player-section')?.dataset.currentPlayer !== 'true') return
+      sourceId = card.dataset.instanceId
+      sourceSeat = card.closest('.player-section')
+      card.classList.add('stage8-attach-source')
+      sourceSeat.querySelectorAll('.battlefield-canvas > .battlefield-card')
+        .forEach((candidate) => {
+          if (candidate.dataset.instanceId !== sourceId &&
+              !candidate.classList.contains('stage8-attached')) {
+            candidate.classList.add('stage8-attach-target')
+          }
+        })
+      showToast('Choose a permanent on your battlefield to attach to (Esc cancels).')
+      return
+    }
+
+    const detach = event.target.closest?.('[data-stage8-detach]')
+    if (detach) {
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      const card = detach.closest('.battlefield-card')
+      if (card?.dataset.instanceId) {
+        void sendAction(actorId, {
+          type: 'setAttachment', instanceId: card.dataset.instanceId, targetInstanceId: null,
+        })
+      }
+      clearSelection()
+      return
+    }
+
+    if (!sourceId) return
+    const target = event.target.closest?.('.battlefield-canvas > .battlefield-card')
+    if (!target || !sourceSeat?.contains(target) || target.dataset.instanceId === sourceId) {
+      // Outside click exits select-target mode, but allows other controls to work.
+      if (!event.target.closest?.('.card-tools')) clearSelection()
+      return
+    }
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    if (target.classList.contains('stage8-attached')) return
+    const targetInstanceId = target.dataset.instanceId
+    const instanceId = sourceId
+    clearSelection()
+    void sendAction(actorId, { type: 'setAttachment', instanceId, targetInstanceId })
+  }, true)
+
+  // Suppress the ordinary tap-on-pointerup behavior while a target is picked.
+  document.addEventListener('pointerdown', (event) => {
+    if (!sourceId) return
+    const target = event.target.closest?.('.battlefield-canvas > .battlefield-card')
+    if (target && sourceSeat?.contains(target) && !event.target.closest('button')) {
+      event.preventDefault()
+      event.stopImmediatePropagation()
+    }
+  }, true)
+  document.addEventListener('keydown', (event) => {
+    if (sourceId && event.key === 'Escape') clearSelection()
+  })
 }

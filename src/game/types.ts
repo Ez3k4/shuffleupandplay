@@ -30,6 +30,7 @@ export type CardCounter = {
 }
 
 export type BattlefieldCard = Card & {
+  attachedTo?: string
   x: number
   y: number
   counters: CardCounter[]
@@ -69,6 +70,7 @@ export type PublicCard = Card & {
 }
 
 export type PublicBattlefieldCard = PublicCard & {
+  attachedTo?: string
   x: number
   y: number
   counters: CardCounter[]
@@ -120,6 +122,7 @@ export type PlayerSummary = {
 }
 
 export type CardFingerprint = {
+  attachedTo?: string | null
   instanceId: string
   tapped: boolean
   x: number

@@ -1,51 +1,53 @@
-# Stage 7 — Land classification hotfix
+# Stage 8A installer — Fedora without Node.js
 
-This hotfix preserves the current Stage 7 land-zone renderer, card stacks, CSS, custom JavaScript and game actions.
+This ZIP replaces **only the installer** `install_stage8.py` in your project directory. It does not directly change the web app. The installer keeps its existing compatibility and rollback guards.
 
-It fixes two weaknesses:
-1. A basic land imported with `isLand: false` was not recognized because the renderer returned before checking its unambiguous name.
-2. The importer looked only at one `typeLine` field. The fix checks additional oracle/printing type fields and known basic-land names.
+## Fix
 
-## Installation
+Earlier versions called `node --check` unconditionally. Fedora need not have Node.js installed when building inside Podman. This version runs that optional syntax check if `node` exists; otherwise it explicitly warns and continues. The subsequent `podman build` is mandatory to type-check/compile the app.
 
-From `~/Games/shuffleupandplay`:
+## Inspect before modifying anything
 
 ```bash
-unzip -o ~/Downloads/mtg_tabletop_stage7_fix.zip
-python3 install_stage7_fix.py --check  # Read-only compatibility check
-python3 install_stage7_fix.py          # Changes two .ts files; saves backups
+cd ~/Games/shuffleupandplay
+unzip -o ~/Downloads/mtg_tabletop_stage8a_no_node_fix.zip
+python3 install_stage8.py --status
+```
+
+`--status` is read-only. It reports if the Stage 8 renderer helper, its invocation, the event handler, CSS and backup manifest are present.
+
+- If **every check is YES**, the source appears installed. **Do not rerun the installer.** Rebuild and restart your app (using your existing Podman run command), then see the browser verification below.
+- If Stage 8 checks are all NO, install it as follows:
+
+```bash
+python3 install_stage8.py --check
+python3 install_stage8.py
 podman stop mtg-tabletop
 podman build -t mtg-tabletop .
 ```
 
-Restart with your existing `podman run` command and **the same persistent volume**.
+Use your usual `podman run` command afterward; do not delete the `mtg-tabletop-data` volume.
 
-Test with a Plains or Forest already on the battlefield (basic lands now work even for old saved decks). **Reimport your deck** for nonbasic lands; their metadata may be absent in older saved games.
+- If checks show a **mixture of YES and NO**, do not attempt another install: share the output and inspect the current files before further changes.
 
-## If the lane is still missing
+## Verify on the running page
 
-In Firefox DevTools console with a basic land played:
+In Firefox F12 -> Console with a **nonland** card on your own battlefield:
 
 ```js
 console.table({
-  landLanes: document.querySelectorAll('.stage7-land-zone').length,
-  landStacks: document.querySelectorAll('.stage7-land-stack').length,
-  battlefieldCards: document.querySelectorAll('.battlefield-card').length
+  cards: document.querySelectorAll('.your-seat .battlefield-card:not(.stage7-land-card)').length,
+  attachButtons: document.querySelectorAll('.your-seat .battlefield-card:not(.stage7-land-card) .card-tools [data-stage8-attach-start]').length,
+  unlinkButtons: document.querySelectorAll('.your-seat .battlefield-card:not(.stage7-land-card) .card-tools [data-stage8-detach]').length
 })
 ```
 
-On Fedora, check the running container contains the compiled renderer:
+- `cards > 0` and `attachButtons > 0`: Stage 8 HTML is present; check the right-click visibility handler/CSS if no Attach option appears.
+- `cards > 0` but both buttons are 0: the browser is getting old/unpatched HTML, or the renderer invocation is missing. Confirm the running image and hard-refresh Firefox.
+- `cards = 0`: play a nonland permanent first.
 
-```bash
-podman exec mtg-tabletop sh -c 'grep -R -l "stage7-land-zone" /app/dist /app/public 2>/dev/null | head'
-```
+Right-click on a creature or equipment **on your battlefield**, not a land stack or a card in hand.
 
-Both checks are read-only.
+## Safety
 
-## Undo
-
-```bash
-python3 install_stage7_fix.py --undo
-```
-
-Undo only succeeds if these two files are unchanged since the fix. It does not undo Stage 7 itself.
+The installer still backs up the seven files it modifies in `stage8-backup/` and refuses partial installation when source anchors differ. It does not modify your saved games. Never install on top of an already-applied Stage 8 version.

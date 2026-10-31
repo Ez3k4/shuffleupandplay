@@ -3121,3 +3121,40 @@ main.layout[data-game] #players-area .player-zones {
     top: 2.15rem;
   }
 }
+
+/* ===== Stage 8A: persistent manual attachments ===== */
+/* Auras and Equipment remain real battlefield cards with independent IDs.
+ * Their displayed position is offset from the host; detach keeps their most
+ * recent host coordinates, so the permanent remains on the battlefield. */
+#players-area .battlefield-canvas > .battlefield-card.stage8-attached {
+  margin-left: 23px;
+  margin-top: 31px;
+  z-index: 2;
+  border-color: #d6b477;
+}
+#players-area .battlefield-canvas > .battlefield-card.stage8-attachment-host {
+  z-index: 3;
+}
+/* Do not hide normal moving permanents behind overlapping battlefield cards. */
+#players-area .battlefield-canvas > .battlefield-card.is-dragging:not(.stage8-attached) {
+  z-index: 1000 !important;
+}
+#players-area .battlefield-canvas > .battlefield-card.stage8-attached.is-dragging {
+  z-index: 2 !important;
+}
+/* A selected attachment stays under its host while clicking to select its
+ * target. Stage 8B will introduce a dedicated drag-and-hold attach gesture. */
+#players-area .battlefield-canvas > .battlefield-card.stage8-attached:not(.is-dragging) {
+  z-index: 2;
+}
+#players-area .stage8-attach-target {
+  outline: 3px solid #d9bb79;
+  outline-offset: 2px;
+}
+#players-area .stage8-attach-source {
+  outline: 3px dashed #9fdaae;
+  outline-offset: 3px;
+}
+#players-area .card-tools .stage8-tool {
+  border-color: rgba(213, 188, 133, 0.7);
+}

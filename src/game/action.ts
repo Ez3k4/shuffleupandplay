@@ -9,6 +9,7 @@ export type GameAction =
   | { type: "moveLibraryCardToHand"; instanceId: string }
   | { type: "playFromHand"; instanceId: string }
   | { type: "toggleTap"; instanceId: string }
+  | { type: "setAttachment"; instanceId: string; targetInstanceId: string | null }
   | { type: "moveBattlefieldCard"; instanceId: string; x: number; y: number }
   | {
       type: "moveCardZone"
@@ -66,6 +67,13 @@ const BUILDERS: Record<GameActionType, Builder> = {
     const instanceId = textIdentifier(attributes.instanceId)
     if (!instanceId) return null
     return { type: "playFromHand", instanceId }
+  },
+  setAttachment: (attributes) => {
+    const instanceId = textIdentifier(attributes.instanceId)
+    const targetInstanceId = attributes.targetInstanceId === null
+      ? null : textIdentifier(attributes.targetInstanceId)
+    if (!instanceId || (attributes.targetInstanceId !== null && !targetInstanceId)) return null
+    return { type: "setAttachment", instanceId, targetInstanceId }
   },
   toggleTap: (attributes) => {
     const instanceId = textIdentifier(attributes.instanceId)
