@@ -77,22 +77,46 @@ function playerAt(options: { room: PublicRoom | null; seat: number }): PublicPla
   return options.room?.players.find((player) => player.seat === options.seat)
 }
 
-function renderPlayer(options: { context: ComponentRenderContext; seat: number }): string {
+
+function renderPlayer(options: {
+  context: ComponentRenderContext
+  seat: number
+}): string {
   const { context, seat } = options
   const player = playerAt({ room: context.payload.space, seat })
   if (!player) return ""
 
-  const isCurrentPlayer = player.id === context.payload.currentPlayerId
-  const classes = ["player-section", isCurrentPlayer ? "your-seat" : "opponent-seat"].join(" ")
+  const isCurrentPlayer =
+    player.id === context.payload.currentPlayerId
 
-  return `<section class="${classes}" data-player-id="${attribute(player.id)}" data-current-player="${isCurrentPlayer}">
-  ${renderPlayerHeader({ player, isCurrentPlayer })}
-  ${renderZoneSummary(player)}
-  ${isCurrentPlayer ? renderHand(player) : ""}
-  ${renderBattlefield({ player, isCurrentPlayer })}
-  ${renderZoneLanes({ player, isCurrentPlayer })}
-</section>`
+  const classes = [
+    "player-section",
+    isCurrentPlayer ? "your-seat" : "opponent-seat",
+  ].join(" ")
+
+  const playerDetails = `
+    ${renderPlayerHeader({ player, isCurrentPlayer })}
+    ${renderZoneSummary(player)}
+    ${renderZoneLanes({ player, isCurrentPlayer })}
+  `
+
+  return `
+    <section
+      class="${classes}"
+      data-player-id="${attribute(player.id)}"
+      data-current-player="${isCurrentPlayer}"
+    >
+      ${isCurrentPlayer ? "" : playerDetails}
+
+      ${renderBattlefield({ player, isCurrentPlayer })}
+
+      ${isCurrentPlayer
+        ? `${playerDetails}${renderHand(player)}`
+        : ""}
+    </section>
+  `
 }
+
 
 function renderPlayerHeader(options: { player: PublicPlayer; isCurrentPlayer: boolean }): string {
   const { player, isCurrentPlayer } = options

@@ -356,8 +356,8 @@ export function gamePage(options: {
     ${componentSlot({ name: "playerControls", key: options.seat, context })}
     <section class="main-table panel">
       <div id="players-area">
-        ${componentSlot({ name: "player", key: options.seat, context })}
         ${componentSlot({ name: "player", key: opponentSeat, context })}
+        ${componentSlot({ name: "player", key: options.seat, context })}
       </div>
     </section>
   </div>

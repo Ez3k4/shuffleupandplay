@@ -1477,3 +1477,65 @@ button:disabled,
 .card-tool {
   cursor: pointer;
 }
+
+
+
+
+/* ===== Custom two-player tabletop ===== */
+
+/* Use more of the available screen width */
+.layout[data-game] {
+  max-width: none;
+  padding: 0.75rem;
+}
+
+/* Stack both players vertically */
+#players-area {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+/* Shared visual appearance */
+#players-area .player-section {
+  min-width: 0;
+  background: #142d29;
+  box-shadow: none;
+}
+
+/* Opponent always at the top */
+#players-area .opponent-seat {
+  border-radius: 14px 14px 0 0;
+  border-bottom: none;
+}
+
+/* Your battlefield always at the bottom */
+#players-area .your-seat {
+  border-radius: 0 0 14px 14px;
+  border-top: 2px dashed #b8a47b;
+}
+
+/* More compact battlefield areas */
+#players-area .battlefield {
+  height: clamp(280px, 34vh, 460px);
+  border-top: none;
+  border-bottom: none;
+}
+
+/* Keep the hand underneath the board */
+#players-area .your-seat .hand-strip {
+  min-height: 0;
+  justify-content: center;
+  overflow-x: auto;
+}
+
+/* Limit hand-card size */
+#players-area .your-seat .hand-card {
+  flex: 0 1 140px;
+}
+
+/* Smaller screens */
+@media (max-width: 860px) {
+  #players-area .battlefield {
+    height: 300px;
+  }
+}
