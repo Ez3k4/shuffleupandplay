@@ -3441,3 +3441,133 @@ main.layout[data-game] #players-area .player-zones {
     bottom: 0.25rem;
   }
 }
+
+/* ===== Stage 11: responsive battlefield card sizing ===== */
+/* All sizes are derived from the window WITHOUT scaling the whole canvas.
+ * Normalized card coordinates and pointer/drop coordinates therefore still
+ * use the same untransformed battlefield element.
+ *
+ * The minimum prevents cards from becoming unreadably small. The maximum
+ * prevents large monitors from producing oversized cards. We consider both
+ * viewport width and HEIGHT: each player's board gets roughly half the page.
+ */
+#players-area .player-section {
+  --tabletop-card-width: clamp(72px, min(9vw, 15dvh), 136px);
+  --tabletop-card-height: calc(var(--tabletop-card-width) * 162 / 116);
+
+  /* Keep the two players' three piles aligned with the card travel limit.
+   * This MUST match the visual pile widths for tabletopLogicalPosition(). */
+  --stage11-pile-width: clamp(55px, min(6.6vw, 11dvh), 98px);
+  --stage11-pile-gap: clamp(0.25rem, 0.42vw, 0.45rem);
+  --tabletop-pile-card-width: var(--stage11-pile-width);
+  --tabletop-pile-gap: var(--stage11-pile-gap);
+  --tabletop-pile-reserve: calc(3 * var(--stage11-pile-width) + 2 * var(--stage11-pile-gap) + 16px);
+
+  /* The land lane scales separately, slightly smaller than permanents. */
+  --stage11-land-width: clamp(48px, calc(var(--tabletop-card-width) * 0.655), 88px);
+  --stage11-attachment-scale: 1;
+}
+
+/* The card box and its aspect ratio change; x/y coordinates do not.
+ * Exclude Stage 7's independent, smaller land cards. */
+#players-area .battlefield-canvas > .battlefield-card:not(.stage7-land-card) {
+  width: var(--tabletop-card-width);
+  height: var(--tabletop-card-height);
+}
+
+/* Both seats use one shared pile size, including the existing Library,
+ * Graveyard and Exile previews, while keeping their current positions. */
+#players-area .player-section .player-zones {
+  --zone-card-width: var(--stage11-pile-width);
+}
+#players-area .opponent-seat {
+  --zone-card-width: var(--stage11-pile-width);
+  --opponent-pile-gap: var(--stage11-pile-gap);
+}
+#players-area .your-seat .player-zones .zone-lanes,
+#players-area .opponent-seat .player-zones .zone-lanes {
+  gap: var(--stage11-pile-gap);
+}
+
+/* The Arena-style hand continues to reveal the entire card on hover.
+ * Deriving rise from card width prevents a gap or a cropped title on resize. */
+#players-area .your-seat .player-zones {
+  --hand-peek-height: clamp(28px, calc(var(--stage11-pile-width) * 0.49), 48px);
+  --hand-rise: calc(var(--hand-peek-height) - var(--stage11-pile-width) * 680 / 488 - 4px);
+}
+
+/* Stage 7 land groups and the individual cards inside them scale together.
+ * The original stack offset and tap/click behavior remain in effect. */
+#players-area .battlefield-canvas {
+  --stage7-land-width: var(--stage11-land-width);
+  --stage7-land-height: calc(var(--stage7-land-width) * 107 / 76);
+}
+#players-area .stage7-land-card.battlefield-card {
+  width: calc(var(--stage7-land-width) * 66 / 76);
+  height: calc(var(--stage7-land-height) * 94 / 107);
+}
+#players-area .stage7-land-stack:hover .stage7-land-card,
+#players-area .stage7-land-stack:focus-within .stage7-land-card {
+  left: calc(var(--stage7-stack-index) * clamp(9px, 1.1vw, 15px));
+}
+
+/* Stage 8C still assigns each equipment/aura an individual pixel offset.
+ * At smaller screen widths reduce that offset to keep the fan compact.
+ * We don't touch the saved attachment state, or use transform: scale(). */
+#players-area .battlefield-canvas > .battlefield-card.stage8-attached {
+  margin-left: calc(var(--stage8c-attach-x, 23px) * var(--stage11-attachment-scale));
+  margin-top: calc(var(--stage8c-attach-y, 31px) * var(--stage11-attachment-scale));
+}
+@media (max-width: 1450px) {
+  #players-area .player-section { --stage11-attachment-scale: 0.9; }
+}
+@media (max-width: 1100px) {
+  #players-area .player-section { --stage11-attachment-scale: 0.75; }
+}
+@media (max-width: 700px) {
+  #players-area .player-section { --stage11-attachment-scale: 0.65; }
+}
+
+/* Commander slots remain on their respective right-hand edges. Resize the
+ * preview, but preserve Stage 10B's lower placement for the opponent. */
+#players-area .stage10-command-zone .stage10-card {
+  width: min(calc(var(--tabletop-card-width) * 0.69), 100%);
+}
+#players-area .opponent-seat .stage10-command-zone .stage10-card {
+  width: min(clamp(44px, calc(var(--tabletop-card-width) * 0.52), 70px), 100%);
+}
+
+/* Respect the original no-animation option in the site's stylesheet. */
+
+/* ===== Stage 11C: stable battlefield card-size tiers ===== */
+/* Each player has a different root variable. The page root survives the
+ * server's partial player-section replacements, eliminating size flashes.
+ * This overrides Stage 11's viewport default without changing card x/y. */
+#players-area .player-section.your-seat {
+  --tabletop-card-width: var(--stage11c-you-width, clamp(72px, min(12vw, 21dvh), 176px));
+}
+#players-area .player-section.opponent-seat {
+  --tabletop-card-width: var(--stage11c-opponent-width, clamp(72px, min(12vw, 21dvh), 176px));
+}
+#players-area .player-section {
+  --tabletop-card-height: calc(var(--tabletop-card-width) * 162 / 116);
+  /* Land-stack dimensions remain stable when nonland counts change. */
+  --stage11-land-width: clamp(48px, min(6.2vw, 10dvh), 88px);
+}
+#players-area .battlefield-canvas > .battlefield-card:not(.stage7-land-card) {
+  width: var(--tabletop-card-width);
+  height: var(--tabletop-card-height);
+}
+
+/* ===== Stage 11E: mirrored opponent permanents and attachment fan ===== */
+/* Stage 6 keeps logical card positions identical for all clients. The server
+ * renderer now reverses ONLY the opponent's displayed vertical coordinate,
+ * bringing their front-row creatures toward the middle divider. Their lands
+ * and other fixed UI zones keep their established positions. */
+
+/* An attachment's relative fan must face away from the middle divider on the
+ * opponent side. Stage 11 supplies the responsive scale factor; for builds
+ * without it, the fallback is 1. The horizontal staggering stays unchanged. */
+#players-area .opponent-seat .battlefield-canvas > .battlefield-card.stage8-attached {
+  margin-top: calc(-1 * var(--stage8c-attach-y, 31px) * var(--stage11-attachment-scale, 1));
+}
