@@ -116,8 +116,11 @@ function start(game) {
   wireDeckForms(game, actorId)
   wireCardPreview()
   wireLibraryFilter()
+  wireZoneInspector(game)
   wireCopyButton()
   wireTooltips()
+  wireCardTools(game)
+  wireLibraryPeek(game)
 }
 
 async function startMirror({ actorId, seat, currentPlayerId, workerUrl }) {
@@ -453,6 +456,7 @@ function newGestureKey() {
 let drag = null
 
 function beginDrag(event, game) {
+  if (event.button !== 0) return
   const palette = event.target.closest("[data-counter-palette]")
   if (palette) {
     drag = { kind: "counterPalette", ghost: showCounterGhost(event, palette) }
@@ -804,5 +808,335 @@ function wireCopyButton() {
     window.setTimeout(() => {
       button.textContent = original
     }, 1400)
+  })
+}
+
+
+
+function wireZoneInspector(game) {
+  const dialog = document.createElement("dialog")
+  dialog.className = "zone-inspector"
+
+  dialog.innerHTML = `
+    <div class="zone-inspector-content">
+      <div class="zone-inspector-header">
+        <h2 data-zone-inspector-title></h2>
+        <button
+          type="button"
+          data-zone-inspector-close
+        >Close ✕</button>
+      </div>
+
+      <input
+        type="search"
+        class="zone-inspector-search"
+        data-zone-inspector-search
+        placeholder="Search cards by name..."
+        aria-label="Filter cards by name"
+      />
+
+      <div
+        class="zone-inspector-results"
+        data-zone-inspector-results
+      ></div>
+    </div>
+  `
+
+  document.body.append(dialog)
+
+  const title = dialog.querySelector(
+    "[data-zone-inspector-title]"
+  )
+  const search = dialog.querySelector(
+    "[data-zone-inspector-search]"
+  )
+  const results = dialog.querySelector(
+    "[data-zone-inspector-results]"
+  )
+  const closeButton = dialog.querySelector(
+    "[data-zone-inspector-close]"
+  )
+
+  let selectedPlayerId = null
+  let selectedZone = null
+
+  function getSource() {
+    if (!selectedPlayerId || !selectedZone) return null
+
+    const player = [...game.querySelectorAll(".player-section")]
+      .find((element) =>
+        element.dataset.playerId === selectedPlayerId
+      )
+
+    return player?.querySelector(
+      `.zone-lane[data-zone="${selectedZone}"] .zone-source`
+    ) ?? null
+  }
+
+  function renderResults() {
+    const cards = [...(getSource()?.children ?? [])]
+    const query = search.value.trim().toLowerCase()
+
+    const matching = cards.filter((card) => {
+      const name = card.dataset.previewName ?? ""
+      return name.toLowerCase().includes(query)
+    })
+
+    const label =
+      selectedZone === "graveyard" ? "Graveyard" : "Exile"
+
+    title.textContent = `${label} (${cards.length})`
+
+    if (matching.length === 0) {
+      const message = document.createElement("p")
+      message.className = "zone-inspector-empty"
+      message.textContent = query
+        ? "No matching cards."
+        : "This zone is empty."
+
+      results.replaceChildren(message)
+      return
+    }
+
+    results.replaceChildren(
+      ...matching.map((card) => card.cloneNode(true))
+    )
+  }
+
+  document.addEventListener("click", (event) => {
+    const trigger = event.target.closest?.("[data-open-zone]")
+    if (!trigger) return
+
+    const player = trigger.closest(".player-section")
+    if (!player) return
+
+    const zone = trigger.dataset.openZone
+    if (zone !== "graveyard" && zone !== "exile") return
+
+    selectedPlayerId = player.dataset.playerId
+    selectedZone = zone
+    search.value = ""
+
+    renderResults()
+    dialog.showModal()
+    search.focus()
+  })
+
+  search.addEventListener("input", renderResults)
+
+  closeButton.addEventListener("click", () => {
+    dialog.close()
+  })
+
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) {
+      dialog.close()
+      return
+    }
+
+    // Close after selecting one of your own cards.
+    // The existing document-level game-action handler
+    // still processes the card action.
+    if (event.target.closest("[data-game-action]")) {
+      dialog.close()
+    }
+  })
+
+  // Refresh the displayed cards if multiplayer updates
+  // change the underlying graveyard or exile.
+  const observer = new MutationObserver(() => {
+    if (dialog.open) renderResults()
+  })
+
+  observer.observe(game, {
+    childList: true,
+    subtree: true,
+  })
+}
+
+
+
+function wireCardTools(game) {
+  let openCard = null
+
+  function closeCardTools() {
+    openCard?.classList.remove("card-tools-open")
+    openCard = null
+  }
+
+  // Open the tools with right-click
+  document.addEventListener("contextmenu", (event) => {
+    const card = event.target.closest?.(".battlefield-card")
+
+    // Only allow your own cards with available tools
+    if (
+      !card ||
+      !belongsToCurrentPlayer(card, game) ||
+      !card.querySelector(".card-tools .card-tool")
+    ) {
+      closeCardTools()
+      return
+    }
+
+    // Prevent the normal browser context menu
+    event.preventDefault()
+
+    // Right-clicking the same card closes the menu
+    if (openCard === card) {
+      closeCardTools()
+      return
+    }
+
+    // Close any previously opened card tools
+    closeCardTools()
+
+    // Open tools on the selected card
+    card.classList.add("card-tools-open")
+    openCard = card
+  })
+
+  // Close when clicking outside the tools
+  document.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || !openCard) return
+
+    if (!event.target.closest?.(".card-tools")) {
+      closeCardTools()
+    }
+  })
+
+  // Close after using a card action
+  document.addEventListener("click", (event) => {
+    if (event.target.closest?.(".card-tools [data-game-action]")) {
+      closeCardTools()
+    }
+  })
+
+  // Close with Escape
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeCardTools()
+    }
+  })
+
+  // Close if the battlefield is scrolled
+  document.addEventListener("scroll", closeCardTools, true)
+}
+
+
+function wireLibraryPeek(game) {
+  const dialog = document.createElement("dialog")
+  dialog.className = "library-peek-dialog"
+
+  dialog.innerHTML = `
+    <div class="library-peek-content">
+      <div class="library-peek-header">
+        <h2>Peek at library</h2>
+        <button type="button" data-peek-close>
+          Close ✕
+        </button>
+      </div>
+
+      <label class="library-peek-selector">
+        Number of cards to inspect
+        <input
+          type="number"
+          min="1"
+          max="100"
+          value="3"
+          step="1"
+          data-peek-count
+        />
+      </label>
+
+      <p class="library-peek-info"></p>
+
+      <div class="library-peek-results"></div>
+    </div>
+  `
+
+  document.body.append(dialog)
+
+  const countInput = dialog.querySelector(
+    "[data-peek-count]"
+  )
+
+  const results = dialog.querySelector(
+    ".library-peek-results"
+  )
+
+  const info = dialog.querySelector(
+    ".library-peek-info"
+  )
+
+  function getLibraryCards() {
+    const source = game.querySelector(
+      '.player-section[data-current-player="true"] ' +
+      '.library-peek-source'
+    )
+
+    return [...(source?.children ?? [])]
+  }
+
+  function renderPeek() {
+    const cards = getLibraryCards()
+    const total = cards.length
+
+    countInput.max = String(Math.max(total, 1))
+
+    if (total === 0) {
+      info.textContent = "Your library is empty."
+      results.replaceChildren()
+      return
+    }
+
+    const requested = Number.parseInt(countInput.value, 10)
+
+    const count = Math.min(
+      Math.max(Number.isNaN(requested) ? 1 : requested, 1),
+      total
+    )
+
+    info.textContent =
+      `Showing the top ${count} of ${total} cards, in draw order.`
+
+    results.replaceChildren(
+      ...cards.slice(0, count).map((card) =>
+        card.cloneNode(true)
+      )
+    )
+  }
+
+  document.addEventListener("contextmenu", (event) => {
+    const trigger = event.target.closest?.(
+      ".library-zone-preview"
+    )
+
+    if (!trigger) return
+
+    const player = trigger.closest(".player-section")
+
+    if (player?.dataset.currentPlayer !== "true") {
+      return
+    }
+
+    event.preventDefault()
+
+    countInput.value = "3"
+    renderPeek()
+
+    if (!dialog.open) {
+      dialog.showModal()
+    }
+  })
+
+  countInput.addEventListener("input", renderPeek)
+
+  dialog.querySelector("[data-peek-close]")
+    .addEventListener("click", () => dialog.close())
+
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) {
+      dialog.close()
+    }
   })
 }

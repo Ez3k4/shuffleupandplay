@@ -412,11 +412,97 @@ function renderZoneLanes(options: { player: PublicPlayer; isCurrentPlayer: boole
         })
         .join("")
 
-      return `<div class="zone-lane"><span class="zone-lane-label">${label}</span><div class="zone-lane-cards">${cards}</div></div>`
+
+    const zoneCards = options.player[zone]
+    const topCard = zoneCards[zoneCards.length - 1]
+
+    const preview = topCard?.imageUrl
+      ? `<img
+          src="${attribute(topCard.imageUrl)}"
+          alt="${attribute(topCard.name)}"
+        />`
+      : `<span class="zone-preview-empty">
+          ${topCard ? escapeHtml(topCard.name) : "Empty"}
+        </span>`
+
+    return `
+      <div class="zone-lane" data-zone="${zone}">
+        <button
+          type="button"
+          class="zone-preview"
+          data-open-zone="${zone}"
+        >
+          ${preview}
+          <span class="zone-preview-caption">
+            ${label} (${zoneCards.length})
+          </span>
+        </button>
+
+        <div class="zone-source" hidden>
+          ${cards}
+        </div>
+      </div>
+    `
     })
     .join("")
 
-  return `<div class="zone-lanes">${lanes}</div>`
+
+  const libraryCount = options.player.library.length
+
+  // The first array element is the top of the library.
+  // Only the owning player gets card identities.
+  const peekCards = options.isCurrentPlayer
+    ? options.player.library
+        .map((card, index) => `
+          <div
+            class="library-peek-card"
+            data-library-position="${index + 1}"
+            ${previewAttributes(card)}
+          >
+            ${cardFace(card)}
+          </div>
+        `)
+        .join("")
+    : ""
+
+  const libraryFace = `
+    <span class="library-back-art"></span>
+    <span class="zone-preview-caption">
+      Library (${libraryCount})
+    </span>
+  `
+
+  const libraryPreview = `
+    <div class="zone-lane library-lane" data-zone="library">
+      ${
+        options.isCurrentPlayer
+          ? actionButton({
+              action: { type: "openDeckSearch" },
+              label: libraryFace,
+              className: "zone-preview library-zone-preview"
+            })
+          : `<div class="zone-preview library-zone-preview">
+               ${libraryFace}
+             </div>`
+      }
+
+      ${
+        options.isCurrentPlayer
+          ? `<div class="library-peek-source" hidden>
+               ${peekCards}
+             </div>`
+          : ""
+      }
+    </div>
+  `
+
+  return `
+    <div class="zone-lanes">
+      ${libraryPreview}
+      ${lanes}
+    </div>
+  `
+
 }
 
 function renderPlayerControls(context: ComponentRenderContext): string {
