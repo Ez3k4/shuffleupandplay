@@ -2,7 +2,7 @@
 
 A self-hostable, two-player **Magic: The Gathering** tabletop based on [Shuffle Up and Play](https://github.com/cardmagic/shuffleupandplay). It is designed for playing real games remotely with a shared board, Archidekt decks and mostly manual card interactions—without requiring a full MTG rules engine.
 
-This repository is a customized version of the original application. The features below describe the tabletop after the incremental local modifications through **Stage 11E**. Some installations may differ if an optional patch (such as drag-to-attach) was not applied.
+This repository is a customized version of the original application. The features below describe the tabletop after the incremental local modifications, iwas tired in the end and maybe the AI slop got out of hand. But it works on my machine haha.
 
 > **Project status:** Personal / experimental. Tested primarily on Fedora with rootless Podman and Firefox. Not yet hardened as a public internet service.
 
@@ -181,7 +181,21 @@ The customization was developed through incremental patch stages. Some historica
 
 ## Licensing and attribution
 
-This project is derived from **[Shuffle Up and Play](https://github.com/cardmagic/shuffleupandplay)**, originally created by **Lucas Carlson**. The original software is distributed under the **MIT License**. Preserve its copyright notice and `MIT-LICENSE` file when redistributing this modified software.
+## Attribution
+
+This project is derived from **[Shuffle Up and Play](https://github.com/cardmagic/shuffleupandplay)**, originally created by **Lucas Carlson**. 
+
+The original project is licensed under the MIT License.
+The original copyright and license notice are preserved
+in [MIT-LICENSE](MIT-LICENSE).
+
+This version extends the original application with
+Commander support, land stacking, card attachments,
+mulligans, responsive battlefields, and additional
+tabletop interactions.
+
+This is an independent community modification and
+is not an official release of the original project.
 
 **Magic: The Gathering** and related card artwork and trademarks belong to Wizards of the Coast. This is an unofficial fan project, not affiliated with or endorsed by Wizards of the Coast. Card images are supplied through Scryfall; deck import uses Archidekt's public API. The original software license does **not** grant rights to third-party card art or trademarks. Review the relevant fan-content and image-usage policies before public hosting.
 
