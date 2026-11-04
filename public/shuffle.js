@@ -1050,12 +1050,6 @@ function wireCardTools(game) {
     // Prevent the normal browser context menu
     event.preventDefault()
 
-    // Right-clicking the same card closes the menu
-    if (openCard === card) {
-      closeCardTools()
-      return
-    }
-
     // Close any previously opened card tools
     closeCardTools()
 
