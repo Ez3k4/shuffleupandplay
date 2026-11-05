@@ -4544,41 +4544,10 @@ main.layout[data-game] #players-area { position: relative; }
   background-color: rgba(75, 150, 105, 0.10);
 }
 
-/* Stage 13C — A random image per player's canvas. The color wash plus low
- * opacity intentionally keeps permanent artwork and labels in focus.
- * This pseudo-element never receives clicks/drags and does not alter layout. */
-#players-area .battlefield-canvas[data-stage13-wallpaper]::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(7, 19, 20, 0.70), rgba(7, 19, 20, 0.70)),
-    var(--stage13-wallpaper, none);
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  opacity: 0.55;
-}
-
 /* ================================================================
- * STAGE 14 — Neutral wallpaper opacity and lighter lobby panels
- * No color wash on the playmat: the image alone is translucent, above
- * a neutral charcoal surface. Cards and controls keep their layering.
+ * STAGE 14 — Lighter lobby panels and random initial-screen wallpaper
+ * Battlefield wallpaper placement was moved to STAGE 15 below.
  * ================================================================ */
-
-/* Remove the original green felt gradients ONLY when an image is selected.
- * Without wallpapers, Stage 13's usual felt remains the fallback. */
-#players-area .battlefield-canvas[data-stage13-wallpaper] {
-  background: #14161b;
-}
-
-#players-area .battlefield-canvas[data-stage13-wallpaper]::before {
-  background-image: var(--stage13-wallpaper, none);
-  background-color: transparent;
-  opacity: 0.42; /* Raise/lower to tune wallpaper visibility (0 = hidden). */
-}
 
 /* Stage 14 lobby wallpaper is selected on page load using the same manifest
  * as the battlefields. No image => the original lobby style is unchanged. */
@@ -4606,4 +4575,40 @@ body.stage14-lobby-background .layout:has(.lobby-panel) .stacked-form {
   background: rgba(11, 15, 22, 0.46);
   border-color: rgba(212, 194, 160, 0.25);
   backdrop-filter: blur(4px);
+}
+
+
+/* ================================================================
+ * STAGE 15 — Stable battlefield wallpaper rendering
+ *
+ * #players-area is NOT replaced during player component updates.
+ * The browser sets two wallpaper URLs on this parent when the manifest loads.
+ * Descendant selectors apply them to any old or newly rendered canvas,
+ * avoiding disappearing wallpapers after taps, draws, and zone changes.
+ * No DOM writes to .battlefield-canvas are required.
+ * ================================================================ */
+
+/* Only override the felt when the wallpaper manifest loaded successfully. */
+#players-area[data-stage13-wallpapers-ready] .battlefield-canvas {
+  background: #14161b;
+}
+
+#players-area[data-stage13-wallpapers-ready] .battlefield-canvas::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.42; /* Neutral image opacity, no color overlay. */
+}
+
+#players-area[data-stage13-wallpapers-ready] .your-seat .battlefield-canvas::before {
+  background-image: var(--stage13-wallpaper-own, none);
+}
+
+#players-area[data-stage13-wallpapers-ready] .opponent-seat .battlefield-canvas::before {
+  background-image: var(--stage13-wallpaper-opponent, none);
 }

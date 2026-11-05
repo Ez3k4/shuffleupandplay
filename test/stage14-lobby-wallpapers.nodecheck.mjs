@@ -16,9 +16,10 @@ test('lobby wallpaper is mounted only for the initial screen', () => {
   assert.match(script, /if \(lobbyPanel && !game\) mountStage14LobbyWallpaper\(lobbyPanel\)/)
 })
 
-test('battlefield wallpaper has no tinted gradient', () => {
-  assert.match(css, /STAGE 14[\s\S]*?\.battlefield-canvas\[data-stage13-wallpaper\]::before \{\s*background-image: var\(--stage13-wallpaper, none\);/)
-  assert.match(css, /\.battlefield-canvas\[data-stage13-wallpaper\] \{\s*background: #14161b;/)
+test('battlefield wallpaper has neutral opacity and no tinted gradient', () => {
+  assert.match(css, /STAGE 15[\s\S]*?opacity: 0\.42/)
+  assert.match(css, /\.battlefield-canvas \{\s*background: #14161b;/)
+  assert.doesNotMatch(css, /linear-gradient\(rgba\(7, 19, 20/)
 })
 
 test('lobby panels are partially transparent', () => {
