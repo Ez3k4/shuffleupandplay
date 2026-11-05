@@ -4009,3 +4009,209 @@ main.layout[data-game] .compact-toolbar-section .left-rail.panel {
   user-select: none;
   touch-action: manipulation;
 }
+
+
+/* ================================================================
+ * STAGE 10 — Wider art faces, low-profile lanes, larger hand fan
+ * A. Compact art cards are wider; names overlay the top of the art
+ * B. Fixed land/utility areas hug the battlefield edge and lose boxes
+ * C. Hand is 30% larger; the fan rises as a group on hover/focus
+ * D. Player name and life value share a baseline, without life chrome
+ * All changes are visual. Card actions, drag/drop and persistence stay
+ * in the existing Stage 09 implementation.
+ * ================================================================ */
+
+/* 10A — Keep Stage 11C's progressive sizing, but show more art width.
+ * Shorter art-only aspect ratio preserves the original space saving.
+ * Card title overlays art instead of reserving its own row. */
+#players-area .player-section.your-seat {
+  --tabletop-card-width: clamp(68px, calc(var(--stage11c-you-width, 176px) * 0.82), 147px);
+}
+#players-area .player-section.opponent-seat {
+  --tabletop-card-width: clamp(68px, calc(var(--stage11c-opponent-width, 176px) * 0.82), 147px);
+}
+#players-area .player-section {
+  --tabletop-card-height: calc(var(--tabletop-card-width) * 1.16);
+}
+#players-area .battlefield-card.compact-art-card > .compact-card-name {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  right: 1px;
+  z-index: 3;
+  width: auto;
+  margin: 0;
+  padding: 0.16rem 0.23rem 0.19rem;
+  color: #fff7e7;
+  background: linear-gradient(180deg, rgba(6, 10, 14, 0.91), rgba(6, 10, 14, 0.66) 70%, rgba(6, 10, 14, 0.10));
+  border: 0;
+  border-radius: 2px 2px 0 0;
+  text-shadow: 0 1px 2px #000;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.04;
+  pointer-events: none;
+}
+
+/* 10B — Special lanes still hold individual, actionable card instances;
+ * only their container background/placement changes. Group stays in the
+ * bottom-left corner for your board. The opponent retains its mirrored
+ * player-side position (top-left), so the board remains symmetrical. */
+#players-area .compact-special-lanes {
+  left: 0.35rem;
+  gap: 0.3rem;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+#players-area .your-seat .compact-special-lanes {
+  bottom: 0.18rem;
+}
+#players-area .opponent-seat .compact-special-lanes {
+  top: 0.18rem;
+}
+#players-area .compact-special-lanes > .stage7-land-zone {
+  padding: 0.12rem 0.2rem;
+  border: 0;
+  border-radius: 5px;
+  background: rgba(224, 232, 219, 0.055);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+#players-area .compact-special-lanes .stage7-land-row {
+  gap: 0.2rem;
+  padding: 0.05rem;
+  background: transparent;
+  border: 0;
+}
+@media (max-width: 700px) {
+  #players-area .compact-special-lanes { left: 0.2rem; gap: 0.2rem; }
+  #players-area .your-seat .compact-special-lanes { bottom: 0.12rem; }
+  #players-area .opponent-seat .compact-special-lanes { top: 0.12rem; }
+}
+
+/* 10C — Increase ONLY the hand cards by another 30%, leaving piles alone.
+ * More horizontal overlap keeps 7–15 cards usable in the available width.
+ * Hover/focus lifts the whole fan by 30px; the active card still rises
+ * fully and remains above its neighbors, with the existing full-card popup.
+ * No JS pointer handlers are added: Stage 09 drag-to-play still works. */
+#players-area .your-seat .player-zones {
+  --stage10-hand-width: min(calc(var(--stage09-hand-width) * 1.30), max(110px, 18vw));
+  --hand-rise: calc(var(--hand-peek-height) - var(--stage10-hand-width) * 680 / 488 - 4px);
+  --stage10-fan-lift: 30px;
+}
+#players-area .your-seat .player-zones .hand-zone {
+  max-width: calc(100% - var(--zone-pile-width) - 0.35rem);
+}
+#players-area .your-seat .player-zones .hand-strip {
+  --stage08-hand-overlap: calc(var(--stage10-hand-width) * 0.54);
+}
+#players-area .your-seat .player-zones .hand-strip:has(.hand-card:nth-child(n + 9)) {
+  --stage08-hand-overlap: calc(var(--stage10-hand-width) * 0.72);
+}
+#players-area .your-seat .player-zones .hand-strip:has(.hand-card:nth-child(n + 13)) {
+  --stage08-hand-overlap: calc(var(--stage10-hand-width) * 0.83);
+}
+#players-area .your-seat .player-zones .hand-card {
+  flex: 0 0 var(--stage10-hand-width);
+  width: var(--stage10-hand-width);
+  min-width: var(--stage10-hand-width);
+  max-width: var(--stage10-hand-width);
+}
+#players-area .your-seat .player-zones .hand-strip:has(.hand-card:is(:hover, :focus-visible)) .hand-card {
+  transform: translateY(calc(var(--stage08-hand-drop, 0px) - var(--stage10-fan-lift)))
+    rotate(var(--stage08-hand-angle, 0deg));
+}
+#players-area .your-seat .player-zones .hand-strip .hand-card:is(:hover, :focus-visible),
+#players-area .your-seat .player-zones .hand-strip:has(.hand-card:is(:hover, :focus-visible)) .hand-card:is(:hover, :focus-visible) {
+  transform: translateY(calc(var(--hand-rise) - var(--stage10-fan-lift))) rotate(0deg) scale(1.05);
+  z-index: 100 !important;
+}
+/* On narrow screens, compress the overlaps before cards can spill into the
+ * library/graveyard/exile piles or off the left edge of the viewport. */
+@media (max-width: 1020px) {
+  #players-area .your-seat .player-zones .hand-strip { --stage08-hand-overlap: calc(var(--stage10-hand-width) * 0.64); }
+}
+@media (max-width: 760px) {
+  #players-area .your-seat .player-zones .hand-strip { --stage08-hand-overlap: calc(var(--stage10-hand-width) * 0.74); }
+  #players-area .your-seat .player-zones .hand-strip:has(.hand-card:nth-child(n + 9)) { --stage08-hand-overlap: calc(var(--stage10-hand-width) * 0.85); }
+  #players-area .your-seat .player-zones .hand-strip:has(.hand-card:nth-child(n + 13)) { --stage08-hand-overlap: calc(var(--stage10-hand-width) * 0.92); }
+}
+@media (max-width: 550px) {
+  #players-area .your-seat .player-zones .hand-strip { --stage08-hand-overlap: calc(var(--stage10-hand-width) * 0.89); }
+  #players-area .your-seat .player-zones .hand-strip:has(.hand-card:nth-child(n + 9)) { --stage08-hand-overlap: calc(var(--stage10-hand-width) * 0.94); }
+  #players-area .your-seat .player-zones .hand-strip:has(.hand-card:nth-child(n + 13)) { --stage08-hand-overlap: calc(var(--stage10-hand-width) * 0.97); }
+}
+@media (max-width: 760px) {
+  #players-area .your-seat .player-zones { --stage10-fan-lift: 19px; }
+  /* A slightly flatter fan prevents the leftmost angled card from clipping. */
+  #players-area .your-seat .player-zones .hand-card {
+    transform: translateY(var(--stage08-hand-drop, 0px)) rotate(calc(var(--stage08-hand-angle, 0deg) * 0.45));
+  }
+  #players-area .your-seat .player-zones .hand-strip:has(.hand-card:is(:hover, :focus-visible)) .hand-card {
+    transform: translateY(calc(var(--stage08-hand-drop, 0px) - var(--stage10-fan-lift)))
+      rotate(calc(var(--stage08-hand-angle, 0deg) * 0.45));
+  }
+  #players-area .your-seat .player-zones .hand-strip .hand-card:is(:hover, :focus-visible) {
+    transform: translateY(calc(var(--hand-rise) - var(--stage10-fan-lift))) rotate(0deg) scale(1.05);
+  }
+}
+@media (max-width: 550px) {
+  #players-area .your-seat .player-zones .hand-card {
+    transform: translateY(var(--stage08-hand-drop, 0px)) rotate(0deg);
+  }
+  #players-area .your-seat .player-zones .hand-strip:has(.hand-card:is(:hover, :focus-visible)) .hand-card {
+    transform: translateY(calc(var(--stage08-hand-drop, 0px) - var(--stage10-fan-lift))) rotate(0deg);
+  }
+}
+
+/* 10D — Put player name and life at the same vertical center. Keep the
+ * Stage 09 left/right-click life action, but remove the visual button box. */
+#players-area .your-seat .zone-summary,
+#players-area .opponent-seat .zone-summary {
+  /* Keep the status group at the top edge, not vertically centered in the board. */
+  align-items: flex-start;
+  align-content: flex-start;
+}
+#players-area .zone-summary-player,
+#players-area .zone-summary-life,
+#players-area .zone-summary-life .life-controls {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.2;
+}
+#players-area .zone-summary-player .player-header-name,
+#players-area .zone-summary-player .player-header-name strong {
+  margin: 0;
+  line-height: 1.2;
+}
+#players-area .zone-summary-life {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+#players-area .zone-summary-life .stage09-life-button {
+  padding: 0 0.2rem;
+  min-height: 1.7rem;
+  min-width: 2ch;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #fff0d1;
+  font-weight: 800;
+  line-height: 1.2;
+}
+#players-area .zone-summary-life .stage09-life-button:hover,
+#players-area .zone-summary-life .stage09-life-button:focus-visible {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: none;
+  transform: none;
+}
+#players-area .zone-summary-life .life-value {
+  padding: 0 0.2rem;
+  line-height: 1.2;
+}
