@@ -421,6 +421,19 @@ function renderPendingSpells(player: PublicPlayer, isCurrentPlayer: boolean): st
   </aside>`
 }
 
+// Text symbols intentionally avoid asset files and remain legible on small
+// land/utility cards. Tooltip and accessible name retain the full counter name.
+function stage19CounterSymbol(label: string): string {
+  const symbols: Record<string, string> = {
+    "+1/+1": "✚", "-1/-1": "−", "Flying": "↟", "Deathtouch": "☠",
+    "Lifelink": "♥", "Vigilance": "◉", "Trample": "⤳", "Haste": "⚡",
+    "Reach": "↥", "Menace": "⚔", "Hexproof": "⬡", "First strike": "➤",
+    "Double strike": "»", "Indestructible": "◆", "Shield": "⬟",
+    "Stun": "⌛", "Charge": "ϟ", "Loyalty": "♛",
+  }
+  return symbols[label] ?? "●"
+}
+
 function renderBattlefieldCard(options: {
   card: PublicBattlefieldCard
   isCurrentPlayer: boolean
@@ -431,31 +444,17 @@ function renderBattlefieldCard(options: {
 }): string {
   const { card, isCurrentPlayer } = options
   const tools = isCurrentPlayer ? renderCardTools(card) + renderStage8AttachmentTool(card) : ""
-  const counters = card.counters
-    .map((counter) => {
-      const controls = isCurrentPlayer
-        ? actionButton({
-            action: {
-              type: "updateCounterValue",
-              instanceId: card.instanceId,
-              counterId: counter.id,
-              delta: -1,
-            },
-            label: "−",
-          }) +
-          actionButton({
-            action: {
-              type: "updateCounterValue",
-              instanceId: card.instanceId,
-              counterId: counter.id,
-              delta: 1,
-            },
-            label: "+",
-          })
-        : ""
-      return `<div class="counter-chip" data-counter-id="${attribute(counter.id)}" data-instance-id="${attribute(card.instanceId)}" style="left:${counter.x}px;top:${counter.y}px" title="${attribute(counter.label)} counter"><span class="counter-label">${escapeHtml(counter.label)}</span><span class="counter-value">${counter.value}</span>${controls}</div>`
-    })
-    .join("")
+  // Stage 19: counters are an anchored, compact tray rather than draggable
+  // floating labels. The server still owns every counter ID and value.
+  const counters = card.counters.length
+    ? `<div class="stage19-counter-rack" role="group" aria-label="Counters on ${attribute(card.name)}">${card.counters.map((counter) => {
+        const icon = stage19CounterSymbol(counter.label)
+        const description = `${counter.label} counter: ${counter.value}`
+        const contents = `<span class="stage19-counter-symbol" aria-hidden="true">${escapeHtml(icon)}</span><span class="counter-value">${counter.value}</span>`
+        if (!isCurrentPlayer) return `<span class="counter-chip stage19-counter-static" data-counter-id="${attribute(counter.id)}" title="${attribute(description)}" aria-label="${attribute(description)}">${contents}</span>`
+        return `<button type="button" class="counter-chip stage19-counter-adjust" data-stage19-counter-adjust="true" data-counter-id="${attribute(counter.id)}" data-instance-id="${attribute(card.instanceId)}" data-game-action="${jsonAttribute({ type: "updateCounterValue", instanceId: card.instanceId, counterId: counter.id, delta: 1 })}" title="${attribute(description)} — left click +1, right click −1" aria-label="${attribute(description)}; left click increases, right click decreases">${contents}</button>`
+      }).join("")}</div>`
+    : ""
 
   const isLandStackCard = options.landStackIndex !== undefined
   const position = isLandStackCard

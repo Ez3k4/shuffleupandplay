@@ -1,150 +1,69 @@
-import { expect, test, type Page } from "@playwright/test"
-
+import { expect, test, type Page } from '@playwright/test'
 import {
-  clickAction,
-  dragCounter,
-  dropCounterOn,
-  loadDeck,
-  openTable,
-  seatState,
-  settle,
-  waitForMirror,
-} from "./support.ts"
+  clickAction, dropCounterOn, loadDeck, openTable, seatState, settle, waitForMirror,
+} from './support.ts'
 
-function card(page: Page) {
-  return page.locator(".your-seat .battlefield-card").first()
-}
+// Stage 19 replaces free-positioned counter chips with fixed bottom-left badges.
+// The server keeps historical x/y coordinates for compatibility, but rendering
+// no longer uses those coordinates. Test the new interaction, not old dragging.
+const fieldCard = (page: Page) => page.locator('.your-seat .battlefield-canvas > .battlefield-card').first()
+const badges = (page: Page) => fieldCard(page).locator(':scope > .stage19-counter-rack > .counter-chip')
 
-function chips(page: Page) {
-  return page.locator(".your-seat .counter-chip")
-}
-
-async function playedCard(page: Page): Promise<string> {
+async function playCard(page: Page): Promise<string> {
   const seat = await openTable(page)
   await loadDeck(page, seat.code)
   await waitForMirror(page)
-
   await clickAction(page, '"drawCard"')
-  await expect(page.locator(".your-seat .hand-strip .hand-card")).toHaveCount(1)
-  await page.locator(".your-seat .hand-strip .hand-card").first().click()
-  await expect(card(page)).toBeVisible()
-
+  const hand = page.locator('.your-seat .hand-strip .hand-card').first()
+  await expect(hand).toBeVisible()
+  await hand.dragTo(page.locator('.your-seat .battlefield-canvas').first(), {
+    targetPosition: { x: 210, y: 185 },
+  })
+  await expect(fieldCard(page)).toBeVisible()
   return seat.code
 }
 
-async function addCounterAt(page: Page, at: { x: number; y: number }): Promise<void> {
-  const before = await chips(page).count()
-  await dropCounterOn({ page, card: card(page), at })
-  await expect(chips(page)).toHaveCount(before + 1)
+async function addBadge(page: Page): Promise<void> {
+  await dropCounterOn({page,card:fieldCard(page),at:{x:35,y:45}})
+  await expect(badges(page)).toHaveCount(1)
   await settle(page)
 }
 
-async function tapCard(page: Page): Promise<void> {
-  await card(page).scrollIntoViewIfNeeded()
-  const box = await card(page).boundingBox()
-  if (!box) throw new Error("the card has no box")
-
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
-  await expect(card(page)).toHaveClass(/tapped/)
-  await settle(page)
-}
-
-test("moves a counter with the pointer on an upright card", async ({ page }) => {
-  await playedCard(page)
-  await addCounterAt(page, { x: 30, y: 40 })
-
-  const travel = await dragCounter({ page, chip: chips(page).first(), travel: { x: 24, y: 18 } })
-
-  expect(travel).toEqual({ x: 24, y: 18 })
+test('counters are grouped at the bottom-left with a readable tooltip', async ({page}) => {
+  await playCard(page)
+  await addBadge(page)
+  const card=await fieldCard(page).boundingBox()
+  const chip=await badges(page).first().boundingBox()
+  expect(card && chip).toBeTruthy()
+  if (!card || !chip) return
+  expect(chip.x).toBeGreaterThanOrEqual(card.x)
+  expect(card.y+card.height-(chip.y+chip.height)).toBeLessThanOrEqual(9)
+  await expect(badges(page).first()).toHaveAttribute('title',/counter: 1.*left click \+1, right click −1/)
+  await expect(badges(page).first().locator('.stage19-counter-symbol')).not.toBeEmpty()
 })
 
-test("moves a counter with the pointer on a tapped card", async ({ page }) => {
-  await playedCard(page)
-  await addCounterAt(page, { x: 30, y: 60 })
-  await tapCard(page)
-
-  const travel = await dragCounter({ page, chip: chips(page).first(), travel: { x: 20, y: 16 } })
-
-  expect(travel).toEqual({ x: 20, y: 16 })
+test('left click adds one counter; right click removes one without opening the card menu', async ({page}) => {
+  const code=await playCard(page)
+  await addBadge(page)
+  const badge=badges(page).first()
+  await badge.click()
+  await expect.poll(async()=> (await seatState(page,code)).battlefield[0]?.counters[0]?.value).toBe(2)
+  await badge.click({button:'right'})
+  await expect.poll(async()=> (await seatState(page,code)).battlefield[0]?.counters[0]?.value).toBe(1)
+  await expect(fieldCard(page)).not.toHaveClass(/card-tools-open/)
+  await badge.click({button:'right'})
+  await expect(badges(page)).toHaveCount(0)
 })
 
-test("commits the position the player dragged a counter to on a tapped card", async ({ page }) => {
-  const code = await playedCard(page)
-  await addCounterAt(page, { x: 30, y: 60 })
-  await tapCard(page)
-
-  await dragCounter({ page, chip: chips(page).first(), travel: { x: 18, y: 14 } })
-
-  const local = await chips(page)
-    .first()
-    .evaluate((node: HTMLElement) => ({ x: node.offsetLeft, y: node.offsetTop }))
-  await expect
-    .poll(async () => {
-      const counter = (await seatState(page, code)).battlefield[0]?.counters[0]
-      return counter ? { x: counter.x, y: counter.y } : null
-    })
-    .toEqual(local)
-})
-
-test("drops a counter where the player let go on a tapped card", async ({ page }) => {
-  const code = await playedCard(page)
-  await tapCard(page)
-  await addCounterAt(page, { x: 40, y: 90 })
-
-  await expect
-    .poll(async () => (await seatState(page, code)).battlefield[0]?.counters.length)
-    .toBe(1)
-  const shown = await chips(page)
-    .first()
-    .evaluate((node: HTMLElement) => ({ x: node.offsetLeft, y: node.offsetTop }))
-  const held = (await seatState(page, code)).battlefield[0]!.counters[0]!
-
-  expect({ x: held.x, y: held.y }).toEqual(shown)
-})
-
-test("keeps every counter on a card when the seat redraws", async ({ page }) => {
-  const code = await playedCard(page)
-  await addCounterAt(page, { x: 26, y: 30 })
-  await addCounterAt(page, { x: 26, y: 90 })
-  await addCounterAt(page, { x: 70, y: 130 })
-
-  await expect(chips(page)).toHaveCount(3)
-  await expect
-    .poll(async () => (await seatState(page, code)).battlefield[0]?.counters.length)
-    .toBe(3)
-
-  await clickAction(page, '"delta":-1')
-  await expect(page.locator(".your-seat .life-value")).toHaveText("19")
-
-  await expect(chips(page)).toHaveCount(3)
-})
-
-test("shows exactly the counters the table holds", async ({ page }) => {
-  const code = await playedCard(page)
-  await addCounterAt(page, { x: 26, y: 30 })
-  await addCounterAt(page, { x: 26, y: 100 })
-  await dragCounter({ page, chip: chips(page).first(), travel: { x: 20, y: 10 } })
-
-  await expect
-    .poll(async () => (await seatState(page, code)).battlefield[0]?.counters.length)
-    .toBe(2)
-
-  await expect
-    .poll(async () => {
-      const held = (await seatState(page, code)).battlefield[0]!.counters
-        .map((counter) => `${counter.x},${counter.y}`)
-        .sort()
-        .join(" ")
-      const shown = (
-        await chips(page).evaluateAll((nodes) =>
-          nodes.map(
-            (node) => `${(node as HTMLElement).offsetLeft},${(node as HTMLElement).offsetTop}`,
-          ),
-        )
-      )
-        .sort()
-        .join(" ")
-      return { held, shown, agree: held === shown }
-    })
-    .toMatchObject({ agree: true })
+test('counter badges remain anchored after a remote-visible redraw', async ({page}) => {
+  const code=await playCard(page)
+  await addBadge(page)
+  await clickAction(page,'"delta":-1')
+  await expect.poll(async()=> (await seatState(page,code)).battlefield[0]?.counters.length).toBe(1)
+  const position=await badges(page).first().evaluate(el=>{
+    const r=el.getBoundingClientRect(),p=el.closest('.battlefield-card')!.getBoundingClientRect()
+    return {left:r.left-p.left,bottom:p.bottom-r.bottom}
+  })
+  expect(position.left).toBeGreaterThanOrEqual(0)
+  expect(position.bottom).toBeLessThanOrEqual(9)
 })

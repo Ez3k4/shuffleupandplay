@@ -142,6 +142,7 @@ function start(game) {
   wireStage09HandDrag(game, actorId)
   wireStage09LifeControl(actorId)
   wireStage17StatControls(actorId)
+  wireStage19CounterControls(actorId)
   wireStage17TokenPicker(actorId)
   wireStage18HandMenu()
   wireStage08BringToFront(game)
@@ -633,6 +634,23 @@ function wireStage17StatControls(actorId) {
   }, true)
 }
 
+// ===== Stage 19: all permanent counters work like creature P/T =====
+// Ordinary click uses the delegated +1 game action. Capturing contextmenu
+// prevents both the card menu and the browser menu when applying -1.
+function wireStage19CounterControls(actorId) {
+  document.addEventListener('contextmenu', (event) => {
+    const button = event.target.closest?.('.your-seat [data-stage19-counter-adjust]')
+    if (!button) return
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    const instanceId = button.dataset.instanceId
+    const counterId = button.dataset.counterId
+    if (instanceId && counterId) {
+      void sendAction(actorId, { type: 'updateCounterValue', instanceId, counterId, delta: -1 })
+    }
+  }, true)
+}
+
 // ===== Stage 17: one reusable token picker for every right-click menu =====
 // Keeping the choices in a single dialog avoids multiplying DOM nodes with
 // each additional card in large multiplayer games. IDs are server-validated.
@@ -819,21 +837,8 @@ function beginDrag(event, game) {
     return
   }
 
-  const counter = event.target.closest(".counter-chip")
-  if (counter && !event.target.closest("button")) {
-    const frame = cardFrame(counter.closest(".battlefield-card"))
-    const grab = cardPoint({ pointer: { x: event.clientX, y: event.clientY }, frame })
-    drag = {
-      kind: "counter",
-      element: counter,
-      instanceId: counter.dataset.instanceId,
-      counterId: counter.dataset.counterId,
-      frame,
-      offset: { x: grab.x - counter.offsetLeft, y: grab.y - counter.offsetTop },
-    }
-    counter.setPointerCapture(event.pointerId)
-    return
-  }
+  // Compact Stage 19 counters are fixed in the bottom-left tray: no dragging.
+  if (event.target.closest?.('.stage19-counter-rack')) return
 
   const card = event.target.closest(".battlefield-card")
   if (!card || event.target.closest("button, .counter-chip")) return
@@ -1469,7 +1474,10 @@ function wireCardTools(game) {
   })
 
   // Close if the battlefield is scrolled
-  document.addEventListener("scroll", closeCardTools, true)
+  document.addEventListener("scroll", (event) => {
+    if (event.target.closest?.('.stage18-counter-options, .card-tools:popover-open')) return
+    closeCardTools()
+  }, true)
 }
 
 
@@ -1879,6 +1887,19 @@ function wireLandStackTap(actorId) {
     counterOptions.append(button)
   }
   let menuOpen = false
+  let menuX = 0
+  let menuY = 0
+
+  function positionMenu() {
+    if (!menuOpen) return
+    const rect = menu.getBoundingClientRect()
+    menu.style.left = `${Math.max(8, Math.min(menuX, window.innerWidth - rect.width - 8))}px`
+    menu.style.top = `${Math.max(8, Math.min(menuY, window.innerHeight - rect.height - 8))}px`
+  }
+
+  // When the counter submenu expands, move the fixed menu back inside the
+  // viewport rather than leaving its lower buttons inaccessible.
+  menu.querySelector('.stage18-counter-menu').addEventListener('toggle', () => positionMenu())
 
   function closeMenu() {
     menu.hidden = true
@@ -1908,11 +1929,12 @@ function wireLandStackTap(actorId) {
     }))
     selected.value = card.dataset.instanceId
     menu.querySelector('.stage7-land-menu-title').textContent = card.dataset.previewName ?? 'Permanent actions'
+    menu.querySelector('.stage18-counter-menu').open = false
     menu.hidden = false
     menuOpen = true
-    const rect = menu.getBoundingClientRect()
-    menu.style.left = `${Math.max(8, Math.min(event.clientX, window.innerWidth - rect.width - 8))}px`
-    menu.style.top = `${Math.max(8, Math.min(event.clientY, window.innerHeight - rect.height - 8))}px`
+    menuX = event.clientX
+    menuY = event.clientY
+    positionMenu()
   }, true)
 
   menu.addEventListener('click', (event) => {
@@ -1924,7 +1946,9 @@ function wireLandStackTap(actorId) {
       ? { type: 'addCounter', instanceId, x: 8, y: 8, label: counterLabel }
       : choice === 'library' ? { type: 'moveToDeck', instanceId, from: 'battlefield', position: 'shuffle' }
       : { type: 'moveCardZone', instanceId, from: 'battlefield', to: choice }
-    closeMenu()
+    // Keep the counter picker open to add further counters. Zone moves
+    // dismiss it because the selected permanent changes zone.
+    if (!counterLabel) closeMenu()
     void sendAction(actorId, action)
   })
   document.addEventListener('pointerdown', (event) => {
@@ -1933,7 +1957,12 @@ function wireLandStackTap(actorId) {
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeMenu()
   })
-  window.addEventListener('scroll', closeMenu, true)
+  // Scroll inside the counter choices must not dismiss the floating menu.
+  // Only page/other-container scrolling is treated as a dismissal.
+  window.addEventListener('scroll', (event) => {
+    if (menu.contains(event.target)) return
+    closeMenu()
+  }, true)
 }
 
 // Reject drops behind the floating land lane, just like Stage 3 does for piles.

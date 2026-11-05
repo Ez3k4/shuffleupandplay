@@ -4933,3 +4933,155 @@ main.layout[data-game] #players-area[data-stage16-players] {
   padding: .48rem .55rem; border: 1px solid rgba(214,191,148,.3);
   border-radius: 6px; text-align: left; background: #243439; color: #f6ead4;
 }
+
+
+/* ===== Stage 19: anchored symbolic counters =====
+ * All counters are visually grouped in the bottom-left of every permanent,
+ * including land and compact utility stacks. Old saved x/y data is still
+ * accepted by the server but no longer determines this compact presentation.
+ * A short horizontally scrollable strip prevents crowded land cards.
+ */
+#players-area .battlefield-card > .stage19-counter-rack {
+  position: absolute;
+  left: 3px;
+  bottom: 3px;
+  right: 3px;
+  z-index: 36;
+  display: flex;
+  flex-flow: row nowrap;
+  align-items: flex-end;
+  gap: 2px;
+  max-width: calc(100% - 6px);
+  min-height: 20px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+}
+#players-area .battlefield-card > .stage19-counter-rack::-webkit-scrollbar { display: none; }
+#players-area .stage19-counter-rack > .counter-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 22px;
+  max-width: none;
+  min-height: 20px;
+  margin: 0;
+  padding: 1px 4px;
+  border: 1px solid rgba(225, 199, 143, .78);
+  border-radius: 5px;
+  background: rgba(13, 22, 26, .94);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, .65);
+  color: #fff2d3;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  touch-action: pan-x;
+  transform: none;
+  cursor: default;
+}
+#players-area .your-seat .stage19-counter-rack > button.counter-chip {
+  cursor: pointer;
+  pointer-events: auto;
+  user-select: none;
+}
+#players-area .your-seat .stage19-counter-rack > button.counter-chip:hover,
+#players-area .your-seat .stage19-counter-rack > button.counter-chip:focus-visible {
+  border-color: #ffdc8c;
+  background: #35434a;
+  outline-color: #ffdc8c;
+}
+#players-area .stage19-counter-rack .stage19-counter-symbol {
+  color: #f0c981;
+  font-weight: 900;
+  font-size: 12px;
+  min-width: 11px;
+  text-align: center;
+}
+#players-area .stage19-counter-rack .counter-value {
+  color: #fff7e8;
+  font-size: 11px;
+  font-weight: 800;
+  min-width: 9px;
+  text-align: center;
+}
+#players-area .stage19-counter-rack > .stage19-counter-static { pointer-events: auto; }
+#players-area .stage7-land-card > .stage19-counter-rack {
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+  max-width: calc(100% - 4px);
+  z-index: 24;
+}
+#players-area .stage7-land-card .stage19-counter-rack > .counter-chip {
+  min-width: 19px;
+  min-height: 18px;
+  padding: 1px 3px;
+  font-size: 10px;
+}
+#players-area .stage7-land-card .stage19-counter-rack .stage19-counter-symbol,
+#players-area .stage7-land-card .stage19-counter-rack .counter-value { font-size: 10px; }
+
+/* The fixed land/utility menu is attached to document.body. Give the counter
+ * options their own scroll box and never rely on the clipped battlefield lane.
+ */
+.stage7-land-menu {
+  box-sizing: border-box;
+  max-height: min(80dvh, 520px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.stage7-land-menu .stage18-counter-menu[open] { min-height: 0; }
+.stage7-land-menu .stage18-counter-options {
+  max-height: min(28dvh, 210px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  scrollbar-width: thin;
+}
+#players-area .card-tools:popover-open .stage18-counter-options {
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+
+/* ===== Stage 19B: vertical counters without blocking creature stats =====
+ * Stage 19 positioned the counter rack across the full card width at z:36.
+ * That invisible hit area sat on top of the creature P/T buttons (z:4).
+ * Keep the rack at the bottom-left, make it only as wide as a badge, and
+ * grow new badges upwards. The other part of the card remains clickable.
+ */
+#players-area .battlefield-card > .stage19-counter-rack {
+  right: auto;
+  width: max-content;
+  max-width: min(48px, calc(100% - 6px));
+  max-height: calc(100% - 6px);
+  min-height: 0;
+  flex-flow: column-reverse nowrap;
+  align-items: flex-start;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
+}
+#players-area .stage19-counter-rack > .counter-chip {
+  max-width: 100%;
+  box-sizing: border-box;
+  touch-action: manipulation;
+}
+/* Preserve the fixed-lane counter appearance while allowing vertical stacks. */
+#players-area .stage7-land-card > .stage19-counter-rack {
+  right: auto;
+  width: max-content;
+  max-width: min(48px, calc(100% - 4px));
+}
+/* P/T must always win pointer hit-testing at the bottom-right, even when the
+ * available card width becomes unusually small during battlefield resizing. */
+#players-area .battlefield-card.compact-art-card > .compact-card-pt.stage17-stats {
+  z-index: 48;
+}
