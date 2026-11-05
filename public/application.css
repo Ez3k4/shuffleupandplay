@@ -4613,33 +4613,131 @@ body.stage14-lobby-background .layout:has(.lobby-panel) .stacked-form {
   background-image: var(--stage13-wallpaper-opponent, none);
 }
 
+
 /* ================================================================
- * STAGE 16A — Center the opponent name and life in classic 1v1
- * Keep the zone totals to the right; narrow screens wrap them below.
+ * STAGE 16 — Two / three / four player opponent selection
  * ================================================================ */
-#players-area .opponent-seat .zone-summary {
-  position: relative;
+#players-area > .stage16-opponent-panel[hidden] { display: none !important; }
+#players-area > .stage16-opponent-panel { min-width: 0; }
+#players-area > #component-opponentRoster {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+#players-area .stage16-opponent-roster {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.6rem 0.65rem;
+  max-width: 100%;
+}
+#players-area .stage16-opponent-roster:empty { display: none; }
+#players-area .stage16-opponent-choice {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   gap: 0.55rem;
-  padding-inline: 0.9rem;
+  max-width: 100%;
+  padding: 0.38rem 0.75rem;
+  background: rgba(12, 17, 22, 0.58);
+  color: #e9e3d5;
+  border: 1px solid rgba(180, 181, 175, 0.25);
+  border-radius: 7px;
+  font-size: 0.9rem;
+  box-shadow: none;
 }
-#players-area .opponent-seat .zone-summary-player,
-#players-area .opponent-seat .zone-summary-life { flex: 0 0 auto; }
-#players-area .opponent-seat .zone-summary-info {
-  position: absolute;
-  right: 0.8rem;
-  top: 50%;
-  transform: translateY(-50%);
-  margin: 0;
+#players-area .stage16-opponent-choice.stage16-active,
+#players-area .stage16-opponent-choice[aria-pressed="true"] {
+  border-color: #e3bb77;
+  background: rgba(67, 48, 23, 0.85);
+  box-shadow: 0 0 0 1px rgba(235, 194, 121, 0.45);
 }
-@media (max-width: 1000px) {
-  #players-area .opponent-seat .zone-summary-info {
-    position: static;
-    flex: 1 0 100%;
-    transform: none;
-    justify-content: center;
-  }
+#players-area .stage16-opponent-name {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+#players-area .stage16-opponent-life {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-weight: 700;
+}
+/* Names/life live in the opponent roster; keep the rest of zone counters. */
+#players-area .stage16-opponent-panel .zone-summary-player,
+#players-area .stage16-opponent-panel .zone-summary-life { display: none; }
+#players-area .stage16-opponent-panel .zone-summary-info { margin-left: auto; }
+/* View switching must not create additional padding between battlefields. */
+#players-area .stage16-opponent-panel > [data-component-target] { min-width: 0; }
+@media (max-width: 680px) {
+  #players-area .stage16-opponent-roster { gap: 0.3rem; }
+  #players-area .stage16-opponent-choice { padding: 0.27rem 0.4rem; font-size: 0.75rem; gap: 0.25rem; }
+}
+
+/* Active opponent board occupies the former single-opponent space. */
+#players-area > #component-opponentRoster:has(.stage16-opponent-roster:empty) { display: none; }
+#players-area > .stage16-opponent-panel > [data-component-target] > .opponent-seat { width: 100%; }
+/* When multiplayer's dedicated roster is present, the opponent's name/life
+ * are already in the selector. Show remaining zone totals normally. */
+#players-area .stage16-opponent-panel .opponent-seat .zone-summary {
+  display: flex;
+  justify-content: flex-end;
+}
+#players-area .stage16-opponent-panel .opponent-seat .zone-summary-info {
+  position: static;
+  transform: none;
+  margin-left: auto;
+  flex: 0 1 auto;
+}
+
+/* ================================================================
+ * STAGE 16C — Correct multiplayer grid tracks
+ *
+ * The base tabletop layout has exactly TWO equal-height rows. Stage 16 adds
+ * a roster ABOVE the two battlefields, so it needs a third, content-sized
+ * row. Otherwise the roster stretches to half the screen and the owner's
+ * battlefield overflows into an implicit, almost zero-height row.
+ *
+ * These wrappers are intentional: all opponent seat components must remain
+ * mounted so live updates work even when their panels are hidden.
+ * ================================================================ */
+main.layout[data-game] #players-area[data-stage16-players] {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: max-content minmax(0, 1fr) minmax(0, 1fr);
+}
+
+/* The roster occupies only the height required by its name/life buttons. */
+#players-area[data-stage16-players] > #component-opponentRoster {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  align-self: start;
+}
+
+/* All opponent placeholders share row 2; `hidden` selects just one. */
+#players-area[data-stage16-players] > .stage16-opponent-panel {
+  grid-column: 1;
+  grid-row: 2;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* The viewer's own component is the only direct player component child. */
+#players-area[data-stage16-players] > [id^="component-player-"] {
+  grid-column: 1;
+  grid-row: 3;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+/* Extend the flex-sized battlefield through Stage 16's opponent wrapper. */
+#players-area[data-stage16-players] > .stage16-opponent-panel > [data-component-target] {
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
 }
