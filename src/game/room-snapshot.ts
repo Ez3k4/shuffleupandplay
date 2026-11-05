@@ -95,6 +95,9 @@ export function seatFingerprints(room: Room): SeatFingerprint[] {
         instanceId: card.instanceId,
         attachedTo: card.attachedTo ?? null,
         tapped: card.tapped,
+        isToken: card.isToken === true,
+        powerModifier: card.powerModifier ?? 0,
+        toughnessModifier: card.toughnessModifier ?? 0,
         x: card.x,
         y: card.y,
         counters: card.counters.map((counter) => ({

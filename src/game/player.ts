@@ -1,6 +1,7 @@
 import type { GameAction } from "./action.ts"
 import { defaultRandomness, type Randomness } from "./randomness.ts"
 import type { BattlefieldCard, Card, CardCounter, Player, ZoneName } from "./types.ts"
+import { tokenImageUrl, tokenPreset } from "./tokens.ts"
 
 const STARTING_LIFE = 20
 const LIFE_RANGE = { minimum: 0, maximum: 999 }
@@ -8,7 +9,7 @@ const COUNTER_VALUE_RANGE = { minimum: -999, maximum: 999 }
 const TABLE_RANGE = { x: { minimum: 0, maximum: 1200 }, y: { minimum: 0, maximum: 700 } }
 const COUNTER_RANGE = { x: { minimum: 0, maximum: 96 }, y: { minimum: 0, maximum: 136 } }
 const DRAW_RANGE = { minimum: 1, maximum: 12 }
-const MAXIMUM_COUNTER_LABEL_LENGTH = 9
+const MAXIMUM_COUNTER_LABEL_LENGTH = 24
 const COUNTER_FOOTPRINT = { width: 78, height: 28 }
 const COUNTER_SLOT_POSITION = { x: 8, y: 8 }
 const COUNTER_SLOT_STEP = 29
@@ -96,6 +97,12 @@ export function applyPlayerAction(options: ApplyPlayerActionOptions): Player {
       return playFromHand({ player, instanceId: action.instanceId })
     case "resolveSpell":
       return resolveSpell(player, action.instanceId)
+    case "createToken":
+      return createToken({ player, action, randomness })
+    case "createTokenCopy":
+      return createTokenCopy({ player, instanceId: action.instanceId, randomness })
+    case "adjustCreatureStat":
+      return adjustCreatureStat({ player, action })
     case "toggleTap":
       return toggleTap({ player, instanceId: action.instanceId })
     case "setAttachment":
@@ -199,6 +206,8 @@ function stage10DesignateCommander(player: Player, instanceId: string): Player {
   const sourceZones = ["library", "hand", "battlefield", "graveyard", "exile"] as const
   const from = sourceZones.find((zone) => player[zone].some((card) => card.instanceId === instanceId))
   if (!from) return player
+  // A token copy cannot be designated as a Commander.
+  if (player[from].find((card) => card.instanceId === instanceId)?.isToken) return player
   const removal = removeCard({ player, zone: from, instanceId })
   if (!removal) return player
   const battlefield = from === "battlefield"
@@ -222,7 +231,7 @@ function stage10ReselectCommander(player: Player, instanceId: string): Player {
   const from = zones.find((zone) => player[zone].some((card) => card.instanceId === instanceId))
   if (!from) return player
   const replacement = player[from].find((card) => card.instanceId === instanceId)
-  if (!replacement) return player
+  if (!replacement || replacement.isToken) return player
   const oldCard = deckCard(previous)
   if (from === "battlefield") {
     const battlefield = stage10UnlinkHost(player.battlefield, instanceId).map((card) =>
@@ -387,6 +396,93 @@ function setAttachment(options: {
   }
 }
 
+const MAXIMUM_BATTLEFIELD_CARDS = 250
+const STAT_MODIFIER_LIMIT = { minimum: -99, maximum: 99 }
+
+function tokenLocation(source: BattlefieldCard, count: number): { x: number; y: number } {
+  const nudge = 52 + (count % 3) * 13
+  return { x: clamp(source.x + nudge, TABLE_RANGE.x), y: clamp(source.y + 28, TABLE_RANGE.y) }
+}
+
+function createToken(options: {
+  player: Player
+  action: Extract<GameAction, { type: "createToken" }>
+  randomness: Randomness
+}): Player {
+  const { player, action, randomness } = options
+  if (player.battlefield.length >= MAXIMUM_BATTLEFIELD_CARDS) return player
+  // Global token creation works with an empty battlefield. An explicitly
+  // supplied source must still belong to this player.
+  const source = player.battlefield.find((card) => card.instanceId === action.sourceInstanceId)
+  const preset = tokenPreset(action.tokenId)
+  if (!preset || (action.sourceInstanceId && !source)) return player
+  const artwork = tokenImageUrl(preset)
+  const creature = /\bCreature\b/.test(preset.typeLine)
+  const card: Card = {
+    instanceId: randomness.identifier(),
+    name: preset.name,
+    scryfallId: `stage17-token-${preset.id}`,
+    imageUrl: artwork,
+    artCropUrl: artwork,
+    typeLine: preset.typeLine,
+    ...(preset.power !== undefined ? { printedPower: preset.power } : {}),
+    ...(preset.toughness !== undefined ? { printedToughness: preset.toughness } : {}),
+    isCreature: creature,
+    isUtilityPermanent: !creature,
+    isToken: true,
+    tapped: false,
+    isLand: false,
+    isManaSource: preset.id === "treasure" || preset.id === "gold",
+  }
+  return {
+    ...player,
+    battlefield: [...player.battlefield, battlefieldCard({ card, ...(source ? tokenLocation(source, player.battlefield.length) : freePlayPosition(player.battlefield)) })],
+  }
+}
+
+function createTokenCopy(options: {
+  player: Player
+  instanceId: string
+  randomness: Randomness
+}): Player {
+  const { player, instanceId, randomness } = options
+  if (player.battlefield.length >= MAXIMUM_BATTLEFIELD_CARDS) return player
+  const source = player.battlefield.find((card) => card.instanceId === instanceId) ??
+    player.hand.find((card) => card.instanceId === instanceId)
+  if (!source) return player
+  // Copies keep copiable printed characteristics, not temporary P/T, counters,
+  // tap state, or attachment links. An original token remains a token copy.
+  const card: Card = {
+    ...deckCard(source),
+    instanceId: randomness.identifier(),
+    name: `${source.name} (Token)`,
+    isToken: true,
+    tapped: false,
+  }
+  return {
+    ...player,
+    battlefield: [...player.battlefield, battlefieldCard({ card, ...( "x" in source && "y" in source
+      ? tokenLocation(source as BattlefieldCard, player.battlefield.length)
+      : freePlayPosition(player.battlefield)) })],
+  }
+}
+
+function adjustCreatureStat(options: {
+  player: Player
+  action: Extract<GameAction, { type: "adjustCreatureStat" }>
+}): Player {
+  const { player, action } = options
+  return {
+    ...player,
+    battlefield: player.battlefield.map((card) => {
+      if (card.instanceId !== action.instanceId ||
+          !(card.isCreature || /\bCreature\b/i.test(card.typeLine ?? ""))) return card
+      const key = action.stat === "power" ? "powerModifier" : "toughnessModifier"
+      return { ...card, [key]: clamp((card[key] ?? 0) + action.delta, STAT_MODIFIER_LIMIT) }
+    }),
+  }
+}
+
 function toggleTap(options: { player: Player; instanceId: string }): Player {
   const { player, instanceId } = options
   return {
@@ -437,6 +533,8 @@ function moveCardBetweenZones(options: {
 
   const { card, remainder } = removal
   if (action.to !== "battlefield") {
+    // Tokens cease to exist as soon as they leave the battlefield.
+    if (card.isToken) return remainder
     return { ...remainder, [action.to]: [...remainder[action.to], deckCard(card)] }
   }
 
@@ -463,6 +561,7 @@ function moveToDeck(options: {
   if (!removal) return player
 
   const { remainder } = removal
+  if (removal.card.isToken) return removal.remainder
   const card = deckCard(removal.card)
   if (action.position === "top") return { ...remainder, library: [card, ...remainder.library] }
   if (action.position === "bottom") return { ...remainder, library: [...remainder.library, card] }
@@ -490,7 +589,7 @@ function addCounter(options: {
       const counter: CardCounter = {
         id: action.counterId ?? randomness.identifier(),
         label,
-        value: 0,
+        value: 1,
         ...freeCounterPosition({ requested, taken: card.counters }),
       }
       return { ...card, counters: [...card.counters, counter] }
@@ -630,6 +729,7 @@ function deckCard(card: Card): Card {
     isManaSource: card.isManaSource,
     ...(card.isAttachment !== undefined ? { isAttachment: card.isAttachment } : {}),
     ...(card.isLand !== undefined ? { isLand: card.isLand } : {}),
+    ...(card.isToken !== undefined ? { isToken: card.isToken } : {}),
   }
 }
 

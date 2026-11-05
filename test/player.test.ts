@@ -199,18 +199,18 @@ describe("applyPlayerAction", () => {
       type: "updateCounterValue",
       instanceId: "hand-1",
       counterId: "counter-1",
-      delta: -2,
+      delta: -3,
     })
 
     expect(withCounter.battlefield[0]?.counters[0]).toEqual({
       id: "counter-1",
       label: "+1/+1",
-      value: 0,
+      value: 1,
       x: 10,
       y: 20,
     })
     expect(moved.battlefield[0]?.counters[0]).toMatchObject({ x: 96, y: 136 })
-    expect(increased.battlefield[0]?.counters[0]?.value).toBe(2)
+    expect(increased.battlefield[0]?.counters[0]?.value).toBe(3)
     expect(cleared.battlefield[0]?.counters).toEqual([])
   })
 
@@ -274,10 +274,10 @@ describe("applyPlayerAction", () => {
       instanceId: "hand-1",
       x: 0,
       y: 0,
-      label: "extraordinarily long",
+      label: "extraordinarily long counter name",
     })
 
-    expect(withCounter.battlefield[0]?.counters[0]?.label).toBe("extraordi")
+    expect(withCounter.battlefield[0]?.counters[0]?.label).toBe("extraordinarily long cou")
   })
 
   test("leaves the player unchanged when the card is missing", () => {

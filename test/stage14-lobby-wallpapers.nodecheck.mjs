@@ -13,7 +13,7 @@ test('wallpaper list accepts both JPG and PNG on the lobby', () => {
 })
 
 test('lobby wallpaper is mounted only for the initial screen', () => {
-  assert.match(script, /if \(lobbyPanel && !game\) mountStage14LobbyWallpaper\(lobbyPanel\)/)
+  assert.match(script, /else \{[\s\S]*?if \(lobbyPanel\) mountStage14LobbyWallpaper\(lobbyPanel\)/)
 })
 
 test('battlefield wallpaper has neutral opacity and no tinted gradient', () => {

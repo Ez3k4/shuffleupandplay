@@ -45,12 +45,6 @@ const TAP_SLOP_PIXELS = 10
 const COUNTER_GRAB = { x: 18, y: 12 }
 const DECK_COLORS = ["W", "U", "B", "R", "G", "C"]
 
-const game = document.querySelector("[data-game]")
-if (game) start(game)
-// Stage 14: initial create/join page (not the in-game tabletop).
-const lobbyPanel = document.querySelector('.lobby-panel')
-if (lobbyPanel && !game) mountStage14LobbyWallpaper(lobbyPanel)
-
 let mirror = null
 
 function start(game) {
@@ -147,6 +141,9 @@ function start(game) {
   wireActions(game, actorId)
   wireStage09HandDrag(game, actorId)
   wireStage09LifeControl(actorId)
+  wireStage17StatControls(actorId)
+  wireStage17TokenPicker(actorId)
+  wireStage18HandMenu()
   wireStage08BringToFront(game)
   wireStage9Mulligan(actorId)
   wireStage10Commander(actorId)
@@ -618,6 +615,151 @@ function wireStage09LifeControl(actorId) {
     event.stopPropagation()
     void sendAction(actorId, { type: "adjustLife", delta: -1 })
   }, true)
+}
+
+// ===== Stage 17: independent creature power and toughness controls =====
+// Left-click goes through wireActions; right-click prevents the card menu
+// and sends the negative of the same one-step adjustment.
+function wireStage17StatControls(actorId) {
+  document.addEventListener('contextmenu', (event) => {
+    const button = event.target.closest?.('.your-seat .stage17-stat-adjust')
+    if (!button) return
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    const card = button.closest('.battlefield-card')
+    const stat = button.dataset.stage17Stat
+    if (!card?.dataset.instanceId || !['power', 'toughness'].includes(stat)) return
+    void sendAction(actorId, {type: 'adjustCreatureStat', instanceId: card.dataset.instanceId, stat, delta: -1})
+  }, true)
+}
+
+// ===== Stage 17: one reusable token picker for every right-click menu =====
+// Keeping the choices in a single dialog avoids multiplying DOM nodes with
+// each additional card in large multiplayer games. IDs are server-validated.
+const STAGE17_TOKENS = [
+  ['treasure', 'Treasure', 'Artifact'], ['food', 'Food', 'Artifact'],
+  ['clue', 'Clue', 'Artifact'], ['blood', 'Blood', 'Artifact'],
+  ['map', 'Map', 'Artifact'], ['gold', 'Gold', 'Artifact'],
+  ['soldier', 'Soldier', '1/1'], ['goblin', 'Goblin', '1/1'],
+  ['elf-warrior', 'Elf Warrior', '1/1'], ['saproling', 'Saproling', '1/1'],
+  ['spirit', 'Spirit (Flying)', '1/1'], ['thopter', 'Thopter (Flying)', '1/1'],
+  ['zombie', 'Zombie', '2/2'], ['beast', 'Beast', '3/3'],
+]
+
+function wireStage17TokenPicker(actorId) {
+  const dialog = document.createElement('dialog')
+  dialog.className = 'stage17-token-picker'
+  dialog.innerHTML = `<form method="dialog" class="stage17-picker-head">
+    <strong>Create a token</strong><button type="submit" aria-label="Close token picker">×</button>
+    </form><input type="search" class="stage17-token-filter" placeholder="Search token types…" aria-label="Search tokens">
+    <div class="stage17-token-options"></div><p class="stage17-token-empty" hidden>No matching tokens</p>`
+  const choices = dialog.querySelector('.stage17-token-options')
+  for (const [id, label, detail] of STAGE17_TOKENS) {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.dataset.stage17TokenId = id
+    button.dataset.stage17Search = `${label} ${detail}`.toLowerCase()
+    button.innerHTML = `<span class="stage17-token-name"></span><small></small>`
+    button.querySelector('.stage17-token-name').textContent = label
+    button.querySelector('small').textContent = detail
+    choices.append(button)
+  }
+  document.body.append(dialog)
+  let pickerBusy = false
+
+  const filter = dialog.querySelector('.stage17-token-filter')
+  filter.addEventListener('input', () => {
+    const needle = filter.value.trim().toLowerCase()
+    let count = 0
+    for (const button of choices.children) {
+      const visible = button.dataset.stage17Search.includes(needle)
+      button.hidden = !visible
+      if (visible) count++
+    }
+    dialog.querySelector('.stage17-token-empty').hidden = count !== 0
+  })
+  dialog.addEventListener('close', () => { pickerBusy = false })
+  dialog.addEventListener('click', (event) => {
+    const button = event.target.closest?.('[data-stage17-token-id]')
+    if (!button || pickerBusy) return
+    pickerBusy = true
+    const action = {type: 'createToken', tokenId: button.dataset.stage17TokenId}
+    dialog.close()
+    void sendAction(actorId, action)
+  })
+  document.addEventListener('click', (event) => {
+    const open = event.target.closest?.('[data-stage17-open-tokens]')
+    const fixedCopy = event.target.closest?.('[data-stage17-copy-fixed]')
+    if (!open && !fixedCopy) return
+    const fixedMenu = event.target.closest('.stage7-land-menu')
+    const id = fixedMenu?.querySelector('.stage7-land-select')?.value
+    if (fixedCopy && !id) return
+    event.preventDefault()
+    if (fixedCopy) {
+      void sendAction(actorId, {type: 'createTokenCopy', instanceId: id})
+      return
+    }
+    filter.value = ''
+    filter.dispatchEvent(new Event('input'))
+    if (!dialog.open) dialog.showModal()
+    filter.focus()
+  })
+}
+
+// ===== Stage 18: right-click actions for cards in YOUR hand =====
+// The menu lives on document.body because hand cards overlap and are cropped
+// by the fan. Its buttons use the existing delegated server action handler.
+// A normal left click still NEVER plays a card: drag-to-play is unchanged.
+function wireStage18HandMenu() {
+  const menu = document.createElement('div')
+  menu.className = 'stage18-hand-menu'
+  menu.hidden = true
+  menu.innerHTML = `<strong class="stage18-hand-title"></strong>
+    <div class="stage09-zone-shortcuts" role="group" aria-label="Move card from hand">
+      <button type="button" data-stage18-hand-move="battlefield" class="stage18-zone-battlefield" title="Play card" aria-label="Play card">⚔</button>
+      <button type="button" data-stage18-hand-move="library" class="stage18-zone-library" title="Shuffle into library" aria-label="Shuffle into library">▤</button>
+      <button type="button" data-stage18-hand-move="graveyard" class="stage18-zone-graveyard" title="Move to graveyard" aria-label="Move to graveyard">☠</button>
+      <button type="button" data-stage18-hand-move="exile" class="stage18-zone-exile" title="Move to exile" aria-label="Move to exile">✧</button>
+    </div>
+    <button type="button" class="stage18-hand-token-copy" data-stage18-hand-copy>⧉ Create token copy</button>`
+  document.body.append(menu)
+  let selected = null
+
+  function close() { selected = null; menu.hidden = true }
+
+  document.addEventListener('contextmenu', (event) => {
+    const card = event.target.closest?.('.your-seat .hand-card[data-hand-play-instance-id]')
+    if (!card) { close(); return }
+    event.preventDefault()
+    selected = card.dataset.handPlayInstanceId
+    menu.querySelector('.stage18-hand-title').textContent = card.dataset.previewName || 'Hand card'
+    const actions = {
+      battlefield: {type:'playFromHand',instanceId:selected},
+      library: {type:'moveToDeck',instanceId:selected,from:'hand',position:'shuffle'},
+      graveyard: {type:'moveCardZone',instanceId:selected,from:'hand',to:'graveyard'},
+      exile: {type:'moveCardZone',instanceId:selected,from:'hand',to:'exile'},
+    }
+    for (const button of menu.querySelectorAll('[data-stage18-hand-move]')) {
+      button.dataset.gameAction = JSON.stringify(actions[button.dataset.stage18HandMove])
+    }
+    menu.querySelector('[data-stage18-hand-copy]').dataset.gameAction = JSON.stringify({type:'createTokenCopy',instanceId:selected})
+    menu.hidden = false
+    const rect = menu.getBoundingClientRect()
+    const cardRect = card.getBoundingClientRect()
+    const x = Number.isFinite(event.clientX) ? event.clientX : cardRect.left
+    const y = Number.isFinite(event.clientY) ? event.clientY : cardRect.top
+    menu.style.left = `${Math.max(8, Math.min(x, innerWidth - rect.width - 8))}px`
+    menu.style.top = `${Math.max(8, Math.min(y, innerHeight - rect.height - 8))}px`
+  }, true)
+  document.addEventListener('click', (event) => {
+    if (menu.hidden) return
+    if (menu.contains(event.target) || !event.target.closest?.('.your-seat .hand-card')) close()
+  })
+  document.addEventListener('pointerdown', (event) => {
+    if (!menu.hidden && !menu.contains(event.target) && event.button !== 2) close()
+  }, true)
+  document.addEventListener('keydown', (event) => { if (event.key === 'Escape') close() })
+  window.addEventListener('scroll', close, true)
 }
 
 // ===== Stage 08: bring last touched/dragged battlefield card to front =====
@@ -1713,16 +1855,29 @@ function wireLandStackTap(actorId) {
     <strong class="stage7-land-menu-title">Permanent actions</strong>
     <label>Copy <select class="stage7-land-select"></select></label>
     <div class="stage09-land-zone-shortcuts" role="group" aria-label="Move selected copy to a zone">
-      <button type="button" data-land-choice="hand" title="Move to hand" aria-label="Move to hand">🖐️</button>
-      <button type="button" data-land-choice="library" title="Shuffle into library" aria-label="Shuffle into library">🔀</button>
-      <button type="button" data-land-choice="graveyard" title="Move to graveyard" aria-label="Move to graveyard">🪦</button>
-      <button type="button" data-land-choice="exile" title="Move to exile" aria-label="Move to exile">✨</button>
+      <button type="button" class="stage18-zone-hand" data-land-choice="hand" title="Move to hand" aria-label="Move to hand">✋</button>
+      <button type="button" class="stage18-zone-library" data-land-choice="library" title="Shuffle into library" aria-label="Shuffle into library">▤</button>
+      <button type="button" class="stage18-zone-graveyard" data-land-choice="graveyard" title="Move to graveyard" aria-label="Move to graveyard">☠</button>
+      <button type="button" class="stage18-zone-exile" data-land-choice="exile" title="Move to exile" aria-label="Move to exile">✧</button>
     </div>
-    <button type="button" data-land-choice="tap">Tap / Untap</button>
-    <button type="button" data-land-choice="counter">Add +1/+1 counter</button>
+    <button type="button" data-stage17-copy-fixed="true">⧉ Create token copy</button>
+    <details class="stage18-counter-menu"><summary>⊕ Add counter</summary><div class="stage18-counter-options"></div></details>
+    <button type="button" data-stage18-fixed-attach="true">⛓ Attach</button>
   `
   document.body.append(menu)
   const selected = menu.querySelector('.stage7-land-select')
+  const labels = ['+1/+1','-1/-1','Flying','Deathtouch','Lifelink','Vigilance',
+    'Trample','Haste','Reach','Menace','Hexproof','First strike',
+    'Double strike','Indestructible','Shield','Stun','Charge','Loyalty']
+  const counterOptions = menu.querySelector('.stage18-counter-options')
+  for (const label of labels) {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'stage18-counter-choice'
+    button.dataset.stage18CounterLabel = label
+    button.textContent = label
+    counterOptions.append(button)
+  }
   let menuOpen = false
 
   function closeMenu() {
@@ -1762,11 +1917,12 @@ function wireLandStackTap(actorId) {
 
   menu.addEventListener('click', (event) => {
     const choice = event.target.closest?.('[data-land-choice]')?.dataset.landChoice
-    if (!choice || !selected.value) return
+    const counterLabel = event.target.closest?.('[data-stage18-counter-label]')?.dataset.stage18CounterLabel
+    if ((!choice && !counterLabel) || !selected.value) return
     const instanceId = selected.value
-    const action = choice === 'tap' ? { type: 'toggleTap', instanceId }
+    const action = counterLabel
+      ? { type: 'addCounter', instanceId, x: 8, y: 8, label: counterLabel }
       : choice === 'library' ? { type: 'moveToDeck', instanceId, from: 'battlefield', position: 'shuffle' }
-      : choice === 'counter' ? { type: 'addCounter', instanceId, x: 8, y: 8, label: '+1/+1' }
       : { type: 'moveCardZone', instanceId, from: 'battlefield', to: choice }
     closeMenu()
     void sendAction(actorId, action)
@@ -1804,15 +1960,21 @@ function wireStage8Attachments(actorId) {
   }
 
   document.addEventListener('click', (event) => {
-    const start = event.target.closest?.('[data-stage8-attach-start]')
+    const start = event.target.closest?.('[data-stage8-attach-start], [data-stage18-fixed-attach]')
     if (start) {
       event.preventDefault()
       event.stopImmediatePropagation()
       clearSelection()
-      const card = start.closest('.battlefield-card')
+      const card = start.matches('[data-stage18-fixed-attach]')
+        ? [...document.querySelectorAll('.your-seat .stage7-land-card')].find((c) =>
+            c.dataset.instanceId === start.closest('.stage7-land-menu')?.querySelector('.stage7-land-select')?.value)
+        : start.closest('.battlefield-card')
       if (!card || card.closest('.player-section')?.dataset.currentPlayer !== 'true') return
       sourceId = card.dataset.instanceId
       sourceSeat = card.closest('.player-section')
+      // Hide the floating fixed-card menu without affecting target selection.
+      const fixedMenu = start.closest('.stage7-land-menu')
+      if (fixedMenu) fixedMenu.hidden = true
       card.classList.add('stage8-attach-source')
       sourceSeat.querySelectorAll('.battlefield-canvas > .battlefield-card')
         .forEach((candidate) => {
@@ -2280,5 +2442,16 @@ function wireStage11FourCardTiers(gameRoot) {
   window.addEventListener('resize', schedule)
 }
 
-const stage11dGame = document.querySelector('[data-game]')
-if (stage11dGame) wireStage11FourCardTiers(stage11dGame)
+// Start only after all module-level declarations are initialized. In particular,
+// wireStage17TokenPicker() reads STAGE17_TOKENS, which is declared above.
+// Starting earlier caused a Temporal Dead Zone ReferenceError on game pages,
+// preventing all subsequent initialization (deck search, copy link, wallpapers).
+const game = document.querySelector('[data-game]')
+if (game) {
+  wireStage11FourCardTiers(game)
+  start(game)
+} else {
+  // Stage 14: initial create/join page (not the in-game tabletop).
+  const lobbyPanel = document.querySelector('.lobby-panel')
+  if (lobbyPanel) mountStage14LobbyWallpaper(lobbyPanel)
+}

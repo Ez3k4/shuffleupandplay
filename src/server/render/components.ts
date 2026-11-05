@@ -325,15 +325,12 @@ const lifeControls = `
 `
 
     
-  const actions =
-    isCurrentPlayer && player.deckName
-      ? `<div class="zone-summary-actions">
-          ${actionButton({
-            action: { type: "untapAll" },
-            label: "Untap all"
-          })}
-        </div>`
-      : ""
+  const actions = isCurrentPlayer
+    ? `<div class="zone-summary-actions">
+        ${player.deckName ? actionButton({ action: { type: "untapAll" }, label: "Untap all" }) : ""}
+        <button type="button" class="stage18-create-token" data-stage17-open-tokens="true" aria-label="Create a token">Create token</button>
+      </div>`
+    : ""
 
   return `
     <div class="zone-summary">
@@ -369,7 +366,7 @@ function renderHand(player: PublicPlayer): string {
     const angle = fromCenter * step
     const drop = Math.min(12, Math.abs(fromCenter) * 3)
     const style = `--stage08-hand-angle:${angle.toFixed(2)}deg;--stage08-hand-drop:${drop.toFixed(1)}px;--stage08-hand-order:${index + 1}`
-    return `<button type="button" class="hand-card" data-hand-play-instance-id="${attribute(card.instanceId)}" ${previewAttributes(card)} style="${attribute(style)}" aria-label="Drag ${attribute(card.name)} to your battlefield to play">${cardFace(card)}</button>`
+    return `<button type="button" class="hand-card" data-hand-play-instance-id="${attribute(card.instanceId)}" ${previewAttributes(card)} style="${attribute(style)}" aria-label="Drag ${attribute(card.name)} to play; right-click for more actions">${cardFace(card)}</button>`
   }).join("")
 
   return `<div class="hand-strip" data-hand-count="${hand.length}">${cards}</div>`
@@ -456,7 +453,7 @@ function renderBattlefieldCard(options: {
             label: "+",
           })
         : ""
-      return `<div class="counter-chip" data-counter-id="${attribute(counter.id)}" data-instance-id="${attribute(card.instanceId)}" style="left:${counter.x}px;top:${counter.y}px">${controls}<span class="counter-value">${counter.value}</span></div>`
+      return `<div class="counter-chip" data-counter-id="${attribute(counter.id)}" data-instance-id="${attribute(card.instanceId)}" style="left:${counter.x}px;top:${counter.y}px" title="${attribute(counter.label)} counter"><span class="counter-label">${escapeHtml(counter.label)}</span><span class="counter-value">${counter.value}</span>${controls}</div>`
     })
     .join("")
 
@@ -467,9 +464,9 @@ function renderBattlefieldCard(options: {
   const landClass = isLandStackCard ? " stage7-land-card" : ""
   const utilityClass = options.utilityStack ? " compact-utility-card" : ""
   const compact = !isLandCard(card)
-  const statBadge = compact && card.isCreature === true &&
-    card.printedPower !== undefined && card.printedToughness !== undefined
-    ? `<span class="compact-card-pt">${escapeHtml(card.printedPower)}/${escapeHtml(card.printedToughness)}</span>`
+  const creature = card.isCreature === true || /\bCreature\b/i.test(card.typeLine ?? "")
+  const statBadge = compact && creature
+    ? renderStage17Stats(card, isCurrentPlayer)
     : ""
   const image = compact ? compactCardArtUrl(card) : card.imageUrl
   // The title is allowed to wrap instead of being ellipsized; extremely long
@@ -479,7 +476,7 @@ function renderBattlefieldCard(options: {
     ? `<img class="compact-art-image" loading="lazy" src="${attribute(image)}" data-art-fallback="${attribute(card.imageUrl)}" alt="${attribute(card.name)}" />
       <span class="compact-card-name" style="--compact-title-scale:${titleScale}">${escapeHtml(card.name)}</span>${statBadge}`
     : `<img loading="lazy" src="${attribute(card.imageUrl)}" alt="${attribute(card.name)}" />`
-  return `<div class="battlefield-card${card.tapped ? " tapped" : ""}${landClass}${utilityClass}${compact ? " compact-art-card" : ""}${statBadge ? " compact-has-pt" : ""}${card.attachedTo ? " stage8-attached" : ""}${options.hasAttachments ? " stage8-attachment-host" : ""}" data-instance-id="${attribute(card.instanceId)}" title="${attribute(card.name)}" data-stage8b-attachable="${(card.isAttachment === true || /\b(?:Aura|Equipment)\b/i.test(card.typeLine ?? "")) ? "true" : "false"}" ${previewAttributes(card)} style="${position};--stage8c-attach-x:${Math.min(options.attachmentIndex ?? 0, 8) * 22}px;--stage8c-attach-y:42px">
+  return `<div class="battlefield-card${card.tapped ? " tapped" : ""}${landClass}${utilityClass}${compact ? " compact-art-card" : ""}${statBadge ? " compact-has-pt" : ""}${card.isToken ? " stage17-token" : ""}${card.attachedTo ? " stage8-attached" : ""}${options.hasAttachments ? " stage8-attachment-host" : ""}" data-instance-id="${attribute(card.instanceId)}" title="${attribute(card.name)}" data-stage8b-attachable="${(card.isAttachment === true || /\b(?:Aura|Equipment)\b/i.test(card.typeLine ?? "")) ? "true" : "false"}" ${previewAttributes(card)} style="${position};--stage8c-attach-x:${Math.min(options.attachmentIndex ?? 0, 8) * 22}px;--stage8c-attach-y:42px">
   ${face}
   <div class="card-tools">${tools}</div>${counters}
 </div>`
@@ -487,6 +484,22 @@ function renderBattlefieldCard(options: {
 
 // Calculate the artwork URL for older saved decks that predate artCropUrl.
 // Keep their original full-card URL as the hover preview and image fallback.
+function stage17StatValue(printed: string | undefined, modifier: number): string {
+  const number = Number(printed)
+  if (printed !== undefined && printed.trim() !== "" && Number.isFinite(number)) return String(number + modifier)
+  if (modifier === 0) return printed ?? "?"
+  return `${printed ?? "?"}${modifier > 0 ? "+" : ""}${modifier}`
+}
+
+function renderStage17Stats(card: PublicBattlefieldCard, editable: boolean): string {
+  const power = stage17StatValue(card.printedPower, card.powerModifier ?? 0)
+  const toughness = stage17StatValue(card.printedToughness, card.toughnessModifier ?? 0)
+  if (!editable) return `<span class="compact-card-pt" aria-label="Power ${attribute(power)}, toughness ${attribute(toughness)}">${escapeHtml(power)}/${escapeHtml(toughness)}</span>`
+  const statControl = (stat: "power" | "toughness", value: string): string =>
+    `<button type="button" class="stage17-stat-adjust" data-stage17-stat="${stat}" data-game-action="${jsonAttribute({ type: "adjustCreatureStat", instanceId: card.instanceId, stat, delta: 1 })}" title="${stat}: left +1, right −1" aria-label="${stat} ${attribute(value)}: left click increases, right click decreases">${escapeHtml(value)}</button>`
+  return `<span class="compact-card-pt stage17-stats">${statControl("power", power)}<span aria-hidden="true">/</span>${statControl("toughness", toughness)}</span>`
+}
+
 function compactCardArtUrl(card: PublicBattlefieldCard): string {
   if (card.artCropUrl) return card.artCropUrl
   const id = card.scryfallId
@@ -613,60 +626,55 @@ function renderStage8AttachmentTool(card: PublicBattlefieldCard): string {
     : `<button type="button" class="card-tool stage8-tool" data-stage8-attach-start="true" title="Attach ${name} to another card">Attach</button>`
 }
 
-function renderCardTools(card: PublicBattlefieldCard): string {
-  const name = card.name
+// Common manual counter presets. These are descriptive counters, not a rules
+// engine: adding a Flying counter does not automatically change combat rules.
+const STAGE18_COUNTER_LABELS = [
+  "+1/+1", "-1/-1", "Flying", "Deathtouch", "Lifelink", "Vigilance",
+  "Trample", "Haste", "Reach", "Menace", "Hexproof", "First strike",
+  "Double strike", "Indestructible", "Shield", "Stun", "Charge", "Loyalty",
+] as const
 
+function renderStage18CounterMenu(instanceId: string): string {
+  const buttons = STAGE18_COUNTER_LABELS.map((label) => actionButton({
+    action: { type: "addCounter", instanceId, x: 8, y: 8, label },
+    label,
+    className: "stage18-counter-choice",
+    accessibleName: `Add ${label} counter`,
+  })).join("")
+  return `<details class="stage18-counter-menu"><summary>⊕ Add counter</summary><div class="stage18-counter-options">${buttons}</div></details>`
+}
+
+function renderCardTools(card: PublicBattlefieldCard): string {
+  const instanceId = card.instanceId
+  const name = card.name
   return [
+    // Always show these four move shortcuts above the other menu items.
     actionButton({
-      action: { type: "addCounter", instanceId: card.instanceId, x: 8, y: 8, label: "+1/+1" },
-      label: "➕",
-      className: "card-tool",
-      accessibleName: `Add a counter to ${name}`,
-    }),
-    actionButton({
-      action: {
-        type: "moveCardZone",
-        instanceId: card.instanceId,
-        from: "battlefield",
-        to: "hand",
-      },
-      label: "🖐️",
-      className: "card-tool",
+      action: { type: "moveCardZone", instanceId, from: "battlefield", to: "hand" },
+      label: "✋", className: "card-tool stage18-zone-hand",
       accessibleName: `Move ${name} to hand`,
     }),
     actionButton({
-      action: {
-        type: "moveToDeck",
-        instanceId: card.instanceId,
-        from: "battlefield",
-        position: "shuffle",
-      },
-      label: "🔀",
-      className: "card-tool",
+      action: { type: "moveToDeck", instanceId, from: "battlefield", position: "shuffle" },
+      label: "▤", className: "card-tool stage18-zone-library",
       accessibleName: `Shuffle ${name} into library`,
     }),
     actionButton({
-      action: {
-        type: "moveCardZone",
-        instanceId: card.instanceId,
-        from: "battlefield",
-        to: "graveyard",
-      },
-      label: "🪦",
-      className: "card-tool",
+      action: { type: "moveCardZone", instanceId, from: "battlefield", to: "graveyard" },
+      label: "☠", className: "card-tool stage18-zone-graveyard",
       accessibleName: `Move ${name} to graveyard`,
     }),
     actionButton({
-      action: {
-        type: "moveCardZone",
-        instanceId: card.instanceId,
-        from: "battlefield",
-        to: "exile",
-      },
-      label: "✨",
-      className: "card-tool",
+      action: { type: "moveCardZone", instanceId, from: "battlefield", to: "exile" },
+      label: "✧", className: "card-tool stage18-zone-exile",
       accessibleName: `Move ${name} to exile`,
     }),
+    actionButton({
+      action: { type: "createTokenCopy", instanceId },
+      label: "⧉", className: "card-tool stage17-token-copy",
+      accessibleName: `Create token copy of ${name}`,
+    }),
+    renderStage18CounterMenu(instanceId),
   ].join("")
 }
 

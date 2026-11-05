@@ -16,6 +16,7 @@ const SHARED_MODULES = new Set([
   "game/player.ts",
   "game/randomness.ts",
   "game/types.ts",
+  "game/tokens.ts",
   "server/render/components.ts",
   "server/render/escape.ts",
 ])

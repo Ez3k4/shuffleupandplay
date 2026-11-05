@@ -30,6 +30,8 @@ export type Card = {
   isLand?: boolean
   /** Aura or Equipment type, for optional drag-to-attach. */
   isAttachment?: boolean
+  /** Generated game piece; removed from the game when it leaves the battlefield. */
+  isToken?: boolean
 }
 
 export type CardCounter = {
@@ -45,6 +47,9 @@ export type BattlefieldCard = Card & {
   x: number
   y: number
   counters: CardCounter[]
+  /** Manual base P/T adjustments, separate from actual +1/+1 counters. */
+  powerModifier?: number
+  toughnessModifier?: number
 }
 
 // Stage 9: opening-hand state is stored with the player.
@@ -100,6 +105,8 @@ export type PublicBattlefieldCard = PublicCard & {
   x: number
   y: number
   counters: CardCounter[]
+  powerModifier?: number
+  toughnessModifier?: number
 }
 
 export type PublicPlayer = {
@@ -158,9 +165,12 @@ export type CardFingerprint = {
   attachedTo?: string | null
   instanceId: string
   tapped: boolean
+  isToken?: boolean
   x: number
   y: number
   counters: CardCounter[]
+  powerModifier?: number
+  toughnessModifier?: number
 }
 
 export type SeatFingerprint = PlayerSummary & {

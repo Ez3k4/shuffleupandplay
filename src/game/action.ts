@@ -18,6 +18,9 @@ export type GameAction =
   | { type: "playFromHand"; instanceId: string }
   | { type: "resolveSpell"; instanceId: string }
   | { type: "toggleTap"; instanceId: string }
+  | { type: "createToken"; tokenId: string; sourceInstanceId?: string }
+  | { type: "createTokenCopy"; instanceId: string }
+  | { type: "adjustCreatureStat"; instanceId: string; stat: "power" | "toughness"; delta: number }
   | { type: "setAttachment"; instanceId: string; targetInstanceId: string | null }
   | { type: "moveBattlefieldCard"; instanceId: string; x: number; y: number }
   | {
@@ -108,6 +111,24 @@ const BUILDERS: Record<GameActionType, Builder> = {
     if (!instanceId || (attributes.targetInstanceId !== null && !targetInstanceId)) return null
     return { type: "setAttachment", instanceId, targetInstanceId }
   },
+  createToken: (attributes) => {
+    const tokenId = textIdentifier(attributes.tokenId)
+    const sourceInstanceId = textIdentifier(attributes.sourceInstanceId)
+    if (!tokenId || (attributes.sourceInstanceId !== undefined && !sourceInstanceId)) return null
+    return { type: "createToken", tokenId, ...(sourceInstanceId ? { sourceInstanceId } : {}) }
+  },
+  createTokenCopy: (attributes) => {
+    const instanceId = textIdentifier(attributes.instanceId)
+    return instanceId ? { type: "createTokenCopy", instanceId } : null
+  },
+  adjustCreatureStat: (attributes) => {
+    const instanceId = textIdentifier(attributes.instanceId)
+    const stat = attributes.stat
+    const delta = attributes.delta
+    if (!instanceId || (stat !== "power" && stat !== "toughness") ||
+        (delta !== 1 && delta !== -1)) return null
+    return { type: "adjustCreatureStat", instanceId, stat, delta }
+  },
   toggleTap: (attributes) => {
     const instanceId = textIdentifier(attributes.instanceId)
     if (!instanceId) return null
@@ -165,7 +186,7 @@ const BUILDERS: Record<GameActionType, Builder> = {
       instanceId,
       x: attributes.x,
       y: attributes.y,
-      ...(attributes.label === undefined ? {} : { label: attributes.label }),
+      ...(typeof attributes.label === "string" ? { label: attributes.label } : {}),
       ...(attributes.counterId === undefined
         ? {}
         : { counterId: String(attributes.counterId) }),

@@ -4785,3 +4785,151 @@ main.layout[data-game] #players-area[data-stage16-players] {
     margin-top: 0.45rem;
   }
 }
+
+/* ===== Stage 17: tokens and manual creature power / toughness ===== */
+/* Unlike the old read-only P/T badge, owner stats are true click targets. */
+#players-area .battlefield-card.compact-art-card > .compact-card-pt.stage17-stats {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.12rem;
+  padding: 0.07rem 0.15rem;
+}
+#players-area .stage17-stats > .stage17-stat-adjust {
+  appearance: none;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  padding: 0.08rem 0.13rem;
+  margin: 0;
+  min-width: 1em;
+  min-height: 20px;
+  font: inherit;
+  font-size: inherit;
+  line-height: 1.1;
+  cursor: pointer;
+  box-shadow: none;
+  touch-action: manipulation;
+}
+#players-area .stage17-stats > .stage17-stat-adjust:hover,
+#players-area .stage17-stats > .stage17-stat-adjust:focus-visible {
+  background: rgba(202, 161, 83, .35);
+  outline: 1px solid #bba66e;
+}
+#players-area .battlefield-card.stage17-token {
+  border-color: rgba(214, 181, 99, 0.8);
+}
+#players-area .card-tools:popover-open > .stage17-token-launch,
+#players-area .card-tools:popover-open > .stage17-token-copy {
+  width: 100%;
+}
+.stage17-token-picker {
+  box-sizing: border-box;
+  width: min(440px, calc(100vw - 24px));
+  max-height: min(76vh, 600px);
+  border: 1px solid #967e56;
+  border-radius: 12px;
+  background: #172126;
+  color: #f5ecdc;
+  padding: 0.8rem;
+  box-shadow: 0 24px 60px #000c;
+}
+.stage17-token-picker::backdrop { background: rgba(0, 0, 0, .54); }
+.stage17-picker-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .55rem; }
+.stage17-picker-head strong { font-size: 1rem; }
+.stage17-picker-head button { padding: .18rem .55rem; font-size: 1.3rem; }
+.stage17-token-filter { width: 100%; margin-bottom: .65rem; padding: .45rem .6rem; }
+.stage17-token-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem; max-height: 53vh; overflow-y: auto; }
+.stage17-token-options button { min-width: 0; padding: .55rem; border: 1px solid #596469; border-radius: 7px; background: #24343b; text-align: left; color: #f5ecdc; }
+.stage17-token-options button:hover, .stage17-token-options button:focus-visible { background: #36505b; border-color: #bfac85; }
+.stage17-token-options .stage17-token-name { display: block; font-size: .87rem; font-weight: 700; }
+.stage17-token-options small { display: block; opacity: .7; margin-top: .14rem; }
+.stage17-token-options button[hidden] { display: none; }
+.stage17-token-empty { color: #dbcbb2; font-size: .87rem; }
+@media (max-width: 480px) {
+  .stage17-token-options { grid-template-columns: 1fr; }
+}
+
+
+/* ===== Stage 18: consistent card menus and keyword counters ===== */
+#players-area .your-seat .zone-summary-actions .stage18-create-token {
+  border: 1px solid rgba(210, 183, 124, .64);
+  background: rgba(53, 41, 30, .93);
+  color: #f7e4b6;
+}
+/* Four symbolic, accessible zone buttons. The glyphs are not official WotC mana symbols. */
+.stage18-zone-hand { color: #e8d5a8 !important; }
+.stage18-zone-library { color: #a2c0e5 !important; }
+.stage18-zone-graveyard { color: #d3c5da !important; }
+.stage18-zone-exile { color: #ebca8d !important; }
+.stage18-zone-battlefield { color: #aadea7 !important; }
+#players-area .card-tools:popover-open > .stage18-counter-menu,
+.stage7-land-menu .stage18-counter-menu { flex: 0 0 auto; min-width: 0; }
+.stage18-counter-menu > summary {
+  cursor: pointer;
+  padding: .47rem .55rem;
+  border: 1px solid rgba(186,165,130,.3);
+  border-radius: 6px;
+  list-style: none;
+  font-size: .82rem;
+  color: #edddc1;
+}
+.stage18-counter-menu > summary::after { content: ' ▾'; float: right; opacity: .7; }
+.stage18-counter-menu > summary:hover { background: rgba(196,156,75,.16); }
+.stage18-counter-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .22rem;
+  max-height: 185px;
+  overflow-y: auto;
+  margin-top: .32rem;
+}
+#players-area .card-tools:popover-open .stage18-counter-options > button,
+.stage7-land-menu .stage18-counter-options > button {
+  display: block;
+  min-width: 0;
+  min-height: 30px;
+  padding: .28rem .32rem;
+  border: 1px solid rgba(198,172,122,.32);
+  border-radius: 5px;
+  font-size: .72rem;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  background: #25343a;
+  color: #f3e8d3;
+}
+#players-area .battlefield-card .counter-chip { font-size: .68rem; }
+#players-area .counter-chip .counter-label { font-size: .68rem; color: #f4e1b4; max-width: 90px; overflow-wrap: anywhere; }
+#players-area .counter-chip { border-radius: 7px; max-width: 186px; width: max-content; }
+.stage7-land-menu { max-height: min(76vh, 500px); overflow-y: auto; }
+.stage7-land-menu .stage18-counter-options { max-height: 155px; }
+.stage7-land-menu .stage09-land-zone-shortcuts { padding: .22rem 0 .4rem; border-bottom: 1px solid rgba(200,184,143,.25); }
+.stage7-land-menu .stage09-land-zone-shortcuts > button { text-align: center; }
+.stage18-hand-menu {
+  box-sizing: border-box;
+  position: fixed;
+  z-index: 15000;
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+  width: 228px;
+  padding: .6rem;
+  border: 1px solid rgba(200,178,143,.65);
+  border-radius: 11px;
+  background: #1a2529;
+  color: #f7eddf;
+  box-shadow: 0 14px 40px #000b;
+}
+.stage18-hand-menu[hidden] { display: none !important; }
+.stage18-hand-title { padding: .25rem .3rem .48rem; border-bottom: 1px solid rgba(200,184,143,.3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stage18-hand-menu .stage09-zone-shortcuts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .25rem; }
+.stage18-hand-menu .stage09-zone-shortcuts > button {
+  min-width: 0; min-height: 39px; border: 1px solid rgba(214,191,148,.4);
+  border-radius: 6px; background: rgba(30,51,52,.95); font-size: 1.15rem;
+}
+.stage18-hand-menu .stage18-hand-token-copy {
+  padding: .48rem .55rem; border: 1px solid rgba(214,191,148,.3);
+  border-radius: 6px; text-align: left; background: #243439; color: #f6ead4;
+}
