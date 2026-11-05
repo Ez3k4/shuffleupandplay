@@ -253,10 +253,14 @@ function renderPlayerHeader(options: { player: PublicPlayer; isCurrentPlayer: bo
   return `<header class="player-header">
   <div class="player-header-name"><strong>${escapeHtml(player.name)}</strong>${searching}</div>
   <div class="life-controls">
-    ${isCurrentPlayer ? actionButton({ action: { type: "adjustLife", delta: -1 }, label: "−" }) : ""}
-    <span class="life-value">${player.life}</span>
-    ${isCurrentPlayer ? actionButton({ action: { type: "adjustLife", delta: 1 }, label: "+" }) : ""}
-    ${isCurrentPlayer ? actionButton({ action: { type: "resetLife" }, label: "Reset" }) : ""}
+    ${isCurrentPlayer
+      ? actionButton({
+          action: { type: "adjustLife", delta: 1 },
+          label: String(player.life),
+          className: "stage09-life-button",
+          accessibleName: `Life ${player.life}. Left click to gain 1 life; right click to lose 1 life.`,
+        })
+      : `<span class="life-value">${player.life}</span>`}
   </div>
 </header>`
 }
@@ -287,36 +291,18 @@ const playerName = `
   </div>
 `
 
+// Stage 09: a single value button replaces +/-/Reset. The standard click
+// action adds 1 life; shuffle.js intercepts contextmenu to subtract 1.
 const lifeControls = `
   <div class="life-controls">
-    ${
-      isCurrentPlayer
-        ? actionButton({
-            action: { type: "adjustLife", delta: -1 },
-            label: "−"
-          })
-        : ""
-    }
-
-    <span class="life-value">${player.life}</span>
-
-    ${
-      isCurrentPlayer
-        ? actionButton({
-            action: { type: "adjustLife", delta: 1 },
-            label: "+"
-          })
-        : ""
-    }
-
-    ${
-      isCurrentPlayer
-        ? actionButton({
-            action: { type: "resetLife" },
-            label: "Reset"
-          })
-        : ""
-    }
+    ${isCurrentPlayer
+      ? actionButton({
+          action: { type: "adjustLife", delta: 1 },
+          label: String(player.life),
+          className: "stage09-life-button",
+          accessibleName: `Life ${player.life}. Left click to gain 1 life; right click to lose 1 life.`,
+        })
+      : `<span class="life-value">${player.life}</span>`}
   </div>
 `
 
@@ -354,20 +340,26 @@ const lifeControls = `
 }
 
 
+// Stage 08 hand presentation: rotations are precomputed so that the HTML
+// remains a normal set of playable buttons. Only visual CSS variables change.
 function renderHand(player: PublicPlayer): string {
-  const cards = [...player.hand]
-    .reverse()
-    .map((card) =>
-      actionButton({
-        action: { type: "playFromHand", instanceId: card.instanceId },
-        label: cardFace(card),
-        className: "hand-card",
-        preview: card,
-      }),
-    )
-    .join("")
+  const hand = [...player.hand].reverse()
+  const midpoint = (hand.length - 1) / 2
+  const step = Math.min(4.2, 24 / Math.max(hand.length - 1, 1))
+  const cards = hand.map((card, index) => {
+    const fromCenter = index - midpoint
+    const angle = fromCenter * step
+    const drop = Math.min(12, Math.abs(fromCenter) * 3)
+    return actionButton({
+      action: { type: "playFromHand", instanceId: card.instanceId },
+      label: cardFace(card),
+      className: "hand-card",
+      preview: card,
+      cssStyle: `--stage08-hand-angle:${angle.toFixed(2)}deg;--stage08-hand-drop:${drop.toFixed(1)}px;--stage08-hand-order:${index + 1}`,
+    })
+  }).join("")
 
-  return `<div class="hand-strip">${cards}</div>`
+  return `<div class="hand-strip" data-hand-count="${hand.length}">${cards}</div>`
 }
 
 function renderBattlefield(options: {
@@ -440,11 +432,14 @@ function renderBattlefieldCard(options: {
     ? `<span class="compact-card-pt">${escapeHtml(card.printedPower)}/${escapeHtml(card.printedToughness)}</span>`
     : ""
   const image = compact ? compactCardArtUrl(card) : card.imageUrl
+  // The title is allowed to wrap instead of being ellipsized; extremely long
+  // names get a slightly smaller font so they fit on an art-crop card.
+  const titleScale = card.name.length > 44 ? 0.069 : card.name.length > 28 ? 0.079 : 0.095
   const face = compact
     ? `<img class="compact-art-image" loading="lazy" src="${attribute(image)}" data-art-fallback="${attribute(card.imageUrl)}" alt="${attribute(card.name)}" />
-      <span class="compact-card-name">${escapeHtml(card.name)}</span>${statBadge}`
+      <span class="compact-card-name" style="--compact-title-scale:${titleScale}">${escapeHtml(card.name)}</span>${statBadge}`
     : `<img loading="lazy" src="${attribute(card.imageUrl)}" alt="${attribute(card.name)}" />`
-  return `<div class="battlefield-card${card.tapped ? " tapped" : ""}${landClass}${utilityClass}${compact ? " compact-art-card" : ""}${statBadge ? " compact-has-pt" : ""}${card.attachedTo ? " stage8-attached" : ""}${options.hasAttachments ? " stage8-attachment-host" : ""}" data-instance-id="${attribute(card.instanceId)}" data-stage8b-attachable="${(card.isAttachment === true || /\b(?:Aura|Equipment)\b/i.test(card.typeLine ?? "")) ? "true" : "false"}" ${previewAttributes(card)} style="${position};--stage8c-attach-x:${23 + Math.min(options.attachmentIndex ?? 0, 8) * 26}px;--stage8c-attach-y:${31 + Math.min(options.attachmentIndex ?? 0, 8) * 16}px">
+  return `<div class="battlefield-card${card.tapped ? " tapped" : ""}${landClass}${utilityClass}${compact ? " compact-art-card" : ""}${statBadge ? " compact-has-pt" : ""}${card.attachedTo ? " stage8-attached" : ""}${options.hasAttachments ? " stage8-attachment-host" : ""}" data-instance-id="${attribute(card.instanceId)}" title="${attribute(card.name)}" data-stage8b-attachable="${(card.isAttachment === true || /\b(?:Aura|Equipment)\b/i.test(card.typeLine ?? "")) ? "true" : "false"}" ${previewAttributes(card)} style="${position};--stage8c-attach-x:${Math.min(options.attachmentIndex ?? 0, 8) * 22}px;--stage8c-attach-y:42px">
   ${face}
   <div class="card-tools">${tools}</div>${counters}
 </div>`
@@ -538,8 +533,9 @@ function renderFixedLane(
     </div>`
   }).join("")
 
+  // The aria-label keeps the lane identifiable to assistive technology;
+  // the visible heading is omitted to give the cards more vertical space.
   return `<div class="stage7-land-zone ${extraClass}" aria-label="${attribute(title)}">
-    <div class="stage7-land-title"><span>${escapeHtml(title)}</span><span>${cards.length}</span></div>
     <div class="stage7-land-row">${stacks}</div>
   </div>`
 }
@@ -833,8 +829,11 @@ function actionButton(options: {
   accessibleName?: string
   preview?: PublicCard
   libraryCardName?: string
+  cssStyle?: string
 }): string {
   const className = options.className ? ` class="${attribute(options.className)}"` : ""
+  // Only renderer-generated numeric CSS variables are supplied by renderHand.
+  const style = options.cssStyle ? ` style="${attribute(options.cssStyle)}"` : ""
   const describedName = options.accessibleName ?? options.title
   const title = describedName ? ` data-tooltip="${attribute(describedName)}"` : ""
   const label = describedName ? ` aria-label="${attribute(describedName)}"` : ""
@@ -843,7 +842,7 @@ function actionButton(options: {
     ? ` data-library-card-name="${attribute(options.libraryCardName)}"`
     : ""
 
-  return `<button type="button"${className}${title}${label}${preview}${filter} data-game-action="${jsonAttribute(options.action)}">${options.label}</button>`
+  return `<button type="button"${className}${style}${title}${label}${preview}${filter} data-game-action="${jsonAttribute(options.action)}">${options.label}</button>`
 }
 
 function previewAttributes(card: PublicCard): string {

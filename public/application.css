@@ -20,6 +20,7 @@
  * Compact tabletop 2 — artwork-only cards, title strips and P/T badges
  * Compact tabletop 3 — land and utility lanes beside each other
  * Compact refinement — search list filtering
+ * Stage 08 — card frames, full-name labels, foreground and fanned hand
  *
  * Caution: the later compact rules intentionally override earlier styles.
  * Edit the LAST matching selector unless you are refactoring the cascade.
@@ -3767,4 +3768,244 @@ main.layout[data-game] .compact-toolbar-section .left-rail.panel {
   margin: 0.35rem 0 0;
   color: var(--muted);
   font-size: 0.8rem;
+}
+
+/* ===== Stage 08A: subtle black borders + less-rounded card frames =====
+ * Applies to the card surface in all main play areas (including land stacks,
+ * utility cards, hand, piles and Commander). Keep full-card hover previews as-is.
+ */
+#players-area .battlefield-card,
+#players-area .player-zones .hand-card,
+#players-area .player-zones .zone-preview,
+#players-area .player-zones .library-zone-preview,
+#players-area .stage10-command-zone .stage10-card,
+#players-area .zone-inspector .zone-card-chip,
+#players-area .library-peek-results .library-peek-card img,
+#players-area .library-search-item img {
+  border: 2px solid #090b0d;
+  border-radius: 5px;
+}
+/* Border follows the outer frame; don't round the artwork independently. */
+#players-area .battlefield-card > img,
+#players-area .player-zones .hand-card > img,
+#players-area .player-zones .zone-preview > img {
+  border-radius: 3px;
+}
+
+/* ===== Stage 08B: dark title plate with wrapping full names =====
+ * A long title can cover some artwork, but the card's complete name is shown
+ * rather than cut off with an ellipsis. Full printed image stays on hover.
+ * The renderer sets --compact-title-scale for unusually long names.
+ */
+#players-area .battlefield-card.compact-art-card > .compact-card-name {
+  color: #fff7e7;
+  background: linear-gradient(180deg, rgba(9, 13, 16, 0.96), rgba(9, 13, 16, 0.81) 78%, rgba(9, 13, 16, 0.7));
+  border-bottom: 1px solid rgba(180, 172, 150, 0.40);
+  text-shadow: 0 1px 2px #000;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+  line-height: 1.04;
+  padding: 0.18rem 0.2rem;
+  font-size: clamp(6px, calc(var(--tabletop-card-width) * var(--compact-title-scale, 0.09)), 12px);
+}
+/* Small utility/artifact cards reuse the land stack dimensions; their titles
+ * must scale to the smaller area as well. */
+#players-area .compact-special-lanes .compact-utility-card.compact-art-card > .compact-card-name {
+  font-size: clamp(6px, calc(var(--stage7-land-width) * var(--compact-title-scale, 0.09)), 8px);
+}
+
+/* ===== Stage 08C: last interacted non-attached card comes forward =====
+ * JavaScript remembers one card per player for THIS browser and reapplies
+ * the class after HTML component updates. Server card coordinates unchanged.
+ * Attachments deliberately stay behind their hosts for clarity.
+ */
+#players-area .battlefield-canvas > .battlefield-card.stage08-front-card:not(.stage8-attached):not(.stage8b-attachment-drag) {
+  z-index: 90 !important;
+}
+#players-area .battlefield-canvas > .battlefield-card.stage08-front-card.is-dragging:not(.stage8b-attachment-drag) {
+  z-index: 1000 !important;
+}
+
+/* ===== Stage 08D: overlapping Arena-style hand fan =====
+ * Each card receives a small rotation and vertical offset from renderHand().
+ * Revealing a card on hover/focus straightens it and raises it above the fan.
+ * Negative margins overlap images; no cards are removed from the DOM.
+ */
+#players-area .your-seat .player-zones .hand-strip {
+  --stage08-hand-overlap: calc(var(--zone-card-width) * 0.43);
+  overflow: visible;
+  justify-content: center;
+  align-items: flex-start;
+}
+#players-area .your-seat .player-zones .hand-strip:has(.hand-card:nth-child(n + 9)) {
+  --stage08-hand-overlap: calc(var(--zone-card-width) * 0.57);
+}
+#players-area .your-seat .player-zones .hand-strip:has(.hand-card:nth-child(n + 13)) {
+  --stage08-hand-overlap: calc(var(--zone-card-width) * 0.72);
+}
+#players-area .your-seat .player-zones .hand-card {
+  flex: 0 0 var(--zone-card-width);
+  width: var(--zone-card-width);
+  min-width: var(--zone-card-width);
+  max-width: var(--zone-card-width);
+  margin: 0;
+  border-color: #090b0d;
+  border-radius: 5px;
+  transform-origin: center bottom;
+  transform: translateY(var(--stage08-hand-drop, 0px)) rotate(var(--stage08-hand-angle, 0deg));
+  z-index: var(--stage08-hand-order, 1);
+  transition: transform 170ms ease, box-shadow 170ms ease;
+}
+#players-area .your-seat .player-zones .hand-card + .hand-card {
+  margin-left: calc(-1 * var(--stage08-hand-overlap));
+}
+#players-area .your-seat .player-zones .hand-card:hover,
+#players-area .your-seat .player-zones .hand-card:focus-visible {
+  transform: translateY(var(--hand-rise)) rotate(0deg) scale(1.05);
+  z-index: 100 !important;
+  box-shadow: 0 13px 30px rgba(0, 0, 0, 0.70);
+}
+@media (prefers-reduced-motion: reduce) {
+  #players-area .your-seat .player-zones .hand-card { transition: none; }
+}
+
+
+/* ================================================================
+ * STAGE 09 — Play-flow refinements
+ * A. Larger overlapping hand and drag-to-play ghost
+ * B. Quick zone-transfer icon rows (floating + fixed-stack menus)
+ * C. Compact land/utility lane, attachments and life controls
+ * ================================================================ */
+
+/* 09A — Hand cards are 30% wider than Stage 08. Keep the piles unchanged.
+ * The overlap scales with hand width, so large hands still form a fan. */
+#players-area .your-seat .player-zones {
+  --stage09-hand-width: calc(var(--zone-card-width) * 1.30);
+  --hand-rise: calc(var(--hand-peek-height) - var(--stage09-hand-width) * 680 / 488 - 4px);
+}
+#players-area .your-seat .player-zones .hand-strip {
+  --stage08-hand-overlap: calc(var(--stage09-hand-width) * 0.49);
+}
+#players-area .your-seat .player-zones .hand-strip:has(.hand-card:nth-child(n + 9)) {
+  --stage08-hand-overlap: calc(var(--stage09-hand-width) * 0.64);
+}
+#players-area .your-seat .player-zones .hand-strip:has(.hand-card:nth-child(n + 13)) {
+  --stage08-hand-overlap: calc(var(--stage09-hand-width) * 0.78);
+}
+#players-area .your-seat .player-zones .hand-card {
+  flex: 0 0 var(--stage09-hand-width);
+  width: var(--stage09-hand-width);
+  min-width: var(--stage09-hand-width);
+  max-width: var(--stage09-hand-width);
+  touch-action: none;
+  user-select: none;
+}
+#players-area .your-seat .player-zones .hand-card > img {
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+#players-area .your-seat .player-zones .hand-card.stage09-hand-dragging {
+  opacity: 0.5;
+}
+.stage09-hand-drag-ghost {
+  position: fixed;
+  z-index: 100000;
+  width: clamp(95px, 9vw, 148px);
+  height: auto;
+  max-height: 45vh;
+  object-fit: contain;
+  pointer-events: none;
+  border: 2px solid #0c1013;
+  border-radius: 5px;
+  box-shadow: 0 12px 34px #000a;
+  transform: translate(-50%, -50%) rotate(-4deg);
+}
+#players-area .your-seat .battlefield.stage09-drop-over {
+  outline: 3px solid #b5d5ad;
+  outline-offset: -3px;
+  background-color: rgba(75, 150, 105, 0.12);
+}
+
+/* 09B — Four quick zone actions on a single row in card popovers.
+ * The original action buttons are MOVED, not cloned; their delegated clicks
+ * still go through wireActions() and the normal server action pipeline. */
+#players-area .card-tools:popover-open > .stage09-zone-shortcuts,
+.stage09-land-zone-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.28rem;
+  width: 100%;
+}
+#players-area .card-tools:popover-open > .stage09-zone-shortcuts {
+  padding: 0.22rem 0 0.4rem;
+  border-bottom: 1px solid var(--line);
+}
+#players-area .card-tools:popover-open .stage09-zone-shortcuts > button,
+.stage7-land-menu .stage09-land-zone-shortcuts > button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 37px;
+  padding: 0.25rem;
+  border: 1px solid rgba(214, 191, 148, 0.4);
+  border-radius: 6px;
+  background: rgba(30, 51, 52, 0.9);
+  box-shadow: none;
+  font-size: 1.1rem;
+  line-height: 1.1;
+  text-align: center;
+  transform: none;
+}
+#players-area .card-tools:popover-open .stage09-zone-shortcuts > button:hover,
+.stage7-land-menu .stage09-land-zone-shortcuts > button:hover {
+  background: rgba(196, 156, 75, 0.28);
+}
+
+/* 09C — No heading above either stacked permanent lane; the lane itself keeps
+ * an aria-label so screen readers can still identify Lands vs. Utilities. */
+#players-area .compact-special-lanes > .stage7-land-zone {
+  gap: 0;
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
+}
+#players-area .compact-special-lanes .stage7-land-row {
+  padding-top: 0.08rem;
+  padding-bottom: 0.08rem;
+}
+
+/* 09D — Attachments peek ABOVE the host: their title is visible, but the rest
+ * of the card is behind the host. Horizontal offsets fan multiple attachments.
+ * Both seats follow the same visual convention (no mirrored vertical sign). */
+#players-area .battlefield-canvas > .battlefield-card.stage8-attached,
+#players-area .opponent-seat .battlefield-canvas > .battlefield-card.stage8-attached {
+  margin-left: calc(var(--stage8c-attach-x, 0px) * var(--stage11-attachment-scale, 1));
+  margin-top: calc(-1 * var(--stage8c-attach-y, 42px) * var(--stage11-attachment-scale, 1));
+  z-index: 2;
+}
+#players-area .battlefield-canvas > .battlefield-card.stage8-attachment-host {
+  z-index: 3;
+}
+
+/* 09E — One large life value, no redundant +/-/Reset buttons. Tooltip explains
+ * left-click +1 and right-click -1; right-click is handled in shuffle.js. */
+#players-area .zone-summary-life .life-controls {
+  gap: 0;
+}
+#players-area .zone-summary-life .stage09-life-button {
+  min-width: 2.55rem;
+  min-height: 2rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid rgba(214, 191, 148, 0.6);
+  border-radius: 8px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
 }

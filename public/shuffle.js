@@ -20,6 +20,8 @@ import { morph } from "./morph.js"
  * - Stage 8                         attaching Auras and Equipment
  * - Stage 9 / Stage 10              mulligans (disabled server-side), Commander
  * - Stage 11                        resize based on nonland battlefield count
+ * - Stage 08                        foreground cards and fanned hand visuals
+ * - Stage 09                        hand drag-to-play, quick-zone icons, life clicks
  *
  * Card classification and location are SERVER-rendered in
  * src/server/render/components.ts; importer metadata lives in
@@ -133,6 +135,9 @@ function start(game) {
   })
 
   wireActions(game, actorId)
+  wireStage09HandDrag(game, actorId)
+  wireStage09LifeControl(actorId)
+  wireStage08BringToFront(game)
   wireStage9Mulligan(actorId)
   wireStage10Commander(actorId)
   wireLandStackTap(actorId)
@@ -484,6 +489,169 @@ function newGestureKey() {
 }
 
 let drag = null
+
+// ===== Stage 09A: drag cards directly from your hand to your battlefield =====
+// A normal click still invokes the existing playFromHand action. A drag only
+// submits that same action on a valid drop, so the server/renderer continues to
+// route lands and noncreature artifacts/enchantments into their correct lanes.
+// The original hand button stays in place; only a visual ghost follows the
+// pointer, preventing accidental card disappearance or manual DOM state edits.
+function wireStage09HandDrag(game, actorId) {
+  const threshold = 12
+  let held = null
+  let blockedClick = null
+  let blockedUntil = 0
+
+  function clear() {
+    if (!held) return
+    held.button.classList.remove("stage09-hand-dragging")
+    held.ghost?.remove()
+    held.battlefield?.classList.remove("stage09-drop-over")
+    held = null
+  }
+
+  function targetAt(event) {
+    const hit = document.elementFromPoint(event.clientX, event.clientY)
+    const field = hit?.closest?.(".your-seat .battlefield")
+    return field && held?.seat?.contains(field) ? field : null
+  }
+
+  function updateGhost(ghost, event) {
+    ghost.style.left = `${event.clientX}px`
+    ghost.style.top = `${event.clientY}px`
+  }
+
+  // Block a synthetic click after a drag, while leaving ordinary click-to-play
+  // untouched. Capture is required: delegated click-to-play listens on document.
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest?.(".your-seat .hand-card")
+    if (!button || button !== blockedClick || performance.now() > blockedUntil) return
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    blockedClick = null
+  }, true)
+
+  document.addEventListener("dragstart", (event) => {
+    if (event.target.closest?.(".your-seat .hand-card")) event.preventDefault()
+  }, true)
+
+  document.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || !event.isPrimary) return
+    const button = event.target.closest?.(".your-seat .hand-card[data-game-action]")
+    if (!button || !game.contains(button)) return
+    let action
+    try { action = JSON.parse(button.dataset.gameAction) } catch { return }
+    if (action?.type !== "playFromHand" || !action.instanceId) return
+    const seat = button.closest(".your-seat")
+    if (!seat) return
+    held = {
+      button, seat, instanceId: action.instanceId,
+      battlefield: seat.querySelector(".battlefield"),
+      pointerId: event.pointerId,
+      x: event.clientX, y: event.clientY,
+      moved: false, ghost: null,
+    }
+    try { button.setPointerCapture(event.pointerId) } catch {}
+  })
+
+  document.addEventListener("pointermove", (event) => {
+    if (!held || event.pointerId !== held.pointerId) return
+    if (!held.moved && Math.hypot(event.clientX - held.x, event.clientY - held.y) < threshold) return
+    if (!held.moved) {
+      held.moved = true
+      const ghost = document.createElement("img")
+      ghost.className = "stage09-hand-drag-ghost"
+      ghost.src = held.button.querySelector("img")?.src ?? ""
+      ghost.alt = ""
+      ghost.setAttribute("aria-hidden", "true")
+      document.body.append(ghost)
+      held.ghost = ghost
+      held.button.classList.add("stage09-hand-dragging")
+      held.battlefield?.classList.add("stage09-hand-drag-active")
+    }
+    event.preventDefault()
+    updateGhost(held.ghost, event)
+    const field = targetAt(event)
+    held.battlefield?.classList.toggle("stage09-drop-over", Boolean(field))
+  })
+
+  document.addEventListener("pointerup", (event) => {
+    if (!held || event.pointerId !== held.pointerId) return
+    const wasDrag = held.moved
+    const drop = wasDrag ? targetAt(event) : null
+    const instanceId = held.instanceId
+    const button = held.button
+    held.battlefield?.classList.remove("stage09-hand-drag-active")
+    clear()
+    if (!wasDrag) return
+    blockedClick = button
+    blockedUntil = performance.now() + 800
+    if (drop) {
+      void sendAction(actorId, { type: "playFromHand", instanceId })
+    } else {
+      showToast("Drop a hand card onto your battlefield to play it.")
+    }
+  })
+
+  document.addEventListener("pointercancel", () => {
+    held?.battlefield?.classList.remove("stage09-hand-drag-active")
+    clear()
+  })
+}
+
+// ===== Stage 09B: compact life button: left +1, right -1 =====
+// Left clicks use data-game-action through wireActions(). Only right-click is
+// handled here, sending the same adjustLife action with a negative delta.
+function wireStage09LifeControl(actorId) {
+  document.addEventListener("contextmenu", (event) => {
+    const button = event.target.closest?.(".your-seat .stage09-life-button")
+    if (!button) return
+    event.preventDefault()
+    event.stopPropagation()
+    void sendAction(actorId, { type: "adjustLife", delta: -1 })
+  }, true)
+}
+
+// ===== Stage 08: bring last touched/dragged battlefield card to front =====
+// Presentation-only state, scoped by player ID. On server/mirror rerenders the
+// HTML nodes can be replaced, so a child-list observer restores the front class.
+// Don't raise attached Auras/Equipment over their hosts: attachment layering
+// is handled separately by Stage 8A/8B/8C.
+function wireStage08BringToFront(game) {
+  const lastCardByPlayer = new Map()
+  let repaintScheduled = false
+
+  function restore() {
+    repaintScheduled = false
+    for (const canvas of game.querySelectorAll(".battlefield-canvas[data-battlefield-player-id]")) {
+      const lastId = lastCardByPlayer.get(canvas.dataset.battlefieldPlayerId)
+      if (!lastId) continue
+      for (const card of canvas.querySelectorAll(":scope > .battlefield-card")) {
+        card.classList.toggle("stage08-front-card", card.dataset.instanceId === lastId && !card.classList.contains("stage8-attached"))
+      }
+    }
+  }
+
+  document.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 && event.button !== 2) return
+    const card = event.target.closest?.(".battlefield-canvas > .battlefield-card")
+    if (!card || card.classList.contains("stage8-attached")) return
+    const canvas = card.closest(".battlefield-canvas")
+    const playerId = canvas?.dataset.battlefieldPlayerId
+    if (!playerId || !card.dataset.instanceId) return
+    lastCardByPlayer.set(playerId, card.dataset.instanceId)
+    restore()
+  }, true)
+
+  const observer = new MutationObserver(() => {
+    if (repaintScheduled) return
+    repaintScheduled = true
+    window.requestAnimationFrame(restore)
+  })
+  // morph() can preserve the card node but replace its class attribute, too.
+  // Observe classes as well as child nodes; restore() is idempotent.
+  observer.observe(game, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] })
+}
 
 // ===== Pointer drag: card movement and board coordinates =====
 // Floating land/utility cards are excluded from this generic drag handler;
@@ -1536,11 +1704,13 @@ function wireLandStackTap(actorId) {
   menu.innerHTML = `
     <strong class="stage7-land-menu-title">Permanent actions</strong>
     <label>Copy <select class="stage7-land-select"></select></label>
+    <div class="stage09-land-zone-shortcuts" role="group" aria-label="Move selected copy to a zone">
+      <button type="button" data-land-choice="hand" title="Move to hand" aria-label="Move to hand">🖐️</button>
+      <button type="button" data-land-choice="library" title="Shuffle into library" aria-label="Shuffle into library">🔀</button>
+      <button type="button" data-land-choice="graveyard" title="Move to graveyard" aria-label="Move to graveyard">🪦</button>
+      <button type="button" data-land-choice="exile" title="Move to exile" aria-label="Move to exile">✨</button>
+    </div>
     <button type="button" data-land-choice="tap">Tap / Untap</button>
-    <button type="button" data-land-choice="hand">Move to hand</button>
-    <button type="button" data-land-choice="graveyard">Move to graveyard</button>
-    <button type="button" data-land-choice="exile">Move to exile</button>
-    <button type="button" data-land-choice="library">Shuffle into library</button>
     <button type="button" data-land-choice="counter">Add +1/+1 counter</button>
   `
   document.body.append(menu)
@@ -1741,29 +1911,29 @@ function wireStage8cCardMenu() {
     title.textContent = card.dataset.previewName || 'Card actions'
     tools.prepend(title)
 
-    // Preserve original buttons and data-game-action attributes. We only
-    // move existing zone-action buttons into an expandable submenu.
+    // Keep each existing data-game-action intact; buttons now appear as a
+    // one-tap icon row instead of a nested "Move to another zone" submenu.
     const zoneButtons = [...tools.children].filter(
       (el) => el.tagName === 'BUTTON' && isZoneAction(el)
     )
     for (const button of tools.querySelectorAll(':scope > button')) {
-      if (button.querySelector('.stage8c-menu-label')) continue
+      if (isZoneAction(button) || button.querySelector('.stage8c-menu-label')) continue
       const label = document.createElement('span')
       label.className = 'stage8c-menu-label'
       label.textContent = readableLabel(button)
       button.append(label)
     }
     if (zoneButtons.length) {
-      const group = document.createElement('details')
-      group.className = 'stage8c-menu-group'
-      const summary = document.createElement('summary')
-      summary.textContent = 'Move to another zone'
-      group.append(summary)
-      const inner = document.createElement('div')
-      inner.className = 'stage8c-menu-subactions'
-      for (const button of zoneButtons) inner.append(button)
-      group.append(inner)
-      tools.append(group)
+      const row = document.createElement('div')
+      row.className = 'stage09-zone-shortcuts'
+      row.setAttribute('role', 'group')
+      row.setAttribute('aria-label', 'Move to hand, library, graveyard or exile')
+      for (const button of zoneButtons) {
+        // The buttons already have an aria-label. Add a native tooltip too.
+        button.title = readableLabel(button)
+        row.append(button)
+      }
+      title.after(row)
     }
   }
 
