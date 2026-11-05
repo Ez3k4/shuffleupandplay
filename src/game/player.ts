@@ -39,6 +39,7 @@ export function buildPlayer(options: BuildPlayerOptions): Player {
     library: [],
     hand: [],
     battlefield: [],
+    pendingSpells: [],
     graveyard: [],
     exile: [],
     isSearchingDeck: false,
@@ -93,6 +94,8 @@ export function applyPlayerAction(options: ApplyPlayerActionOptions): Player {
       return moveLibraryCardToHand({ player, instanceId: action.instanceId })
     case "playFromHand":
       return playFromHand({ player, instanceId: action.instanceId })
+    case "resolveSpell":
+      return resolveSpell(player, action.instanceId)
     case "toggleTap":
       return toggleTap({ player, instanceId: action.instanceId })
     case "setAttachment":
@@ -311,6 +314,17 @@ function playFromHand(options: { player: Player; instanceId: string }): Player {
   const card = player.hand.find((candidate) => candidate.instanceId === instanceId)
   if (!card) return player
 
+  // Stage 11: do not treat instant/sorcery spells as battlefield permanents.
+  // Persist them in their controller's pending spell list until Resolve is pressed.
+  // Existing decks without typeLine metadata may need to be re-imported.
+  if (/\b(?:Instant|Sorcery)\b/i.test(card.typeLine ?? "")) {
+    return {
+      ...player,
+      hand: withoutCard({ cards: player.hand, instanceId }),
+      pendingSpells: [...(player.pendingSpells ?? []), deckCard(card)],
+    }
+  }
+
   return {
     ...player,
     hand: withoutCard({ cards: player.hand, instanceId }),
@@ -318,6 +332,17 @@ function playFromHand(options: { player: Player; instanceId: string }): Player {
       ...player.battlefield,
       battlefieldCard({ card, ...freePlayPosition(player.battlefield) }),
     ],
+  }
+}
+
+function resolveSpell(player: Player, instanceId: string): Player {
+  const pending = player.pendingSpells ?? []
+  const spell = pending.find((card) => card.instanceId === instanceId)
+  if (!spell) return player
+  return {
+    ...player,
+    pendingSpells: pending.filter((card) => card.instanceId !== instanceId),
+    graveyard: [...player.graveyard, deckCard(spell)],
   }
 }
 

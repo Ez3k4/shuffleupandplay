@@ -5,6 +5,7 @@ import {
 import { renderComponent } from "/shared/server/render/components.ts"
 import { cardPoint, dragOffset, dragPosition, rotationFromTransform } from "./drag-math.js"
 import { morph } from "./morph.js"
+import { mountStage12SpellOverlay } from "./stage12-spells.js"
 
 /*
  * SHUFFLE.JS MAINTAINER GUIDE
@@ -22,6 +23,8 @@ import { morph } from "./morph.js"
  * - Stage 11                        resize based on nonland battlefield count
  * - Stage 08                        foreground cards and fanned hand visuals
  * - Stage 09                        hand drag-to-play, quick-zone icons, life clicks
+ * - Stage 11                        drag-only hand; spells remain pending until Resolve
+ * - Stage 12                        central spell overlay; fixed-placed planeswalkers and utilities
  *
  * Card classification and location are SERVER-rendered in
  * src/server/render/components.ts; importer metadata lives in
@@ -147,6 +150,7 @@ function start(game) {
   wireCardPreview()
   wireLibraryFilter()
   wireZoneInspector(game)
+  mountStage12SpellOverlay(game)
   wireCopyButton()
   wireTooltips()
   wireCardTools(game)
@@ -491,16 +495,16 @@ function newGestureKey() {
 let drag = null
 
 // ===== Stage 09A: drag cards directly from your hand to your battlefield =====
-// A normal click still invokes the existing playFromHand action. A drag only
-// submits that same action on a valid drop, so the server/renderer continues to
+// Hand cards deliberately have NO click-to-play action. Only a valid drop
+// submits playFromHand; the server/renderer continues to
 // route lands and noncreature artifacts/enchantments into their correct lanes.
 // The original hand button stays in place; only a visual ghost follows the
 // pointer, preventing accidental card disappearance or manual DOM state edits.
 function wireStage09HandDrag(game, actorId) {
   const threshold = 12
   let held = null
-  let blockedClick = null
-  let blockedUntil = 0
+  // Consume any synthetic click after releasing a pointer on a hand card.
+  // The cards have no data-game-action, so the game cannot play on click.
 
   function clear() {
     if (!held) return
@@ -521,14 +525,11 @@ function wireStage09HandDrag(game, actorId) {
     ghost.style.top = `${event.clientY}px`
   }
 
-  // Block a synthetic click after a drag, while leaving ordinary click-to-play
-  // untouched. Capture is required: delegated click-to-play listens on document.
+  // Belt-and-suspenders safety: a click on a hand card never plays it.
   document.addEventListener("click", (event) => {
-    const button = event.target.closest?.(".your-seat .hand-card")
-    if (!button || button !== blockedClick || performance.now() > blockedUntil) return
+    if (!event.target.closest?.(".your-seat .hand-card")) return
     event.preventDefault()
     event.stopImmediatePropagation()
-    blockedClick = null
   }, true)
 
   document.addEventListener("dragstart", (event) => {
@@ -537,15 +538,14 @@ function wireStage09HandDrag(game, actorId) {
 
   document.addEventListener("pointerdown", (event) => {
     if (event.button !== 0 || !event.isPrimary) return
-    const button = event.target.closest?.(".your-seat .hand-card[data-game-action]")
+    const button = event.target.closest?.(".your-seat .hand-card[data-hand-play-instance-id]")
     if (!button || !game.contains(button)) return
-    let action
-    try { action = JSON.parse(button.dataset.gameAction) } catch { return }
-    if (action?.type !== "playFromHand" || !action.instanceId) return
+    const instanceId = button.dataset.handPlayInstanceId
+    if (!instanceId) return
     const seat = button.closest(".your-seat")
     if (!seat) return
     held = {
-      button, seat, instanceId: action.instanceId,
+      button, seat, instanceId,
       battlefield: seat.querySelector(".battlefield"),
       pointerId: event.pointerId,
       x: event.clientX, y: event.clientY,
@@ -580,12 +580,9 @@ function wireStage09HandDrag(game, actorId) {
     const wasDrag = held.moved
     const drop = wasDrag ? targetAt(event) : null
     const instanceId = held.instanceId
-    const button = held.button
     held.battlefield?.classList.remove("stage09-hand-drag-active")
     clear()
     if (!wasDrag) return
-    blockedClick = button
-    blockedUntil = performance.now() + 800
     if (drop) {
       void sendAction(actorId, { type: "playFromHand", instanceId })
     } else {

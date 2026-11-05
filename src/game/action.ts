@@ -16,6 +16,7 @@ export type GameAction =
   | { type: "closeDeckSearch" }
   | { type: "moveLibraryCardToHand"; instanceId: string }
   | { type: "playFromHand"; instanceId: string }
+  | { type: "resolveSpell"; instanceId: string }
   | { type: "toggleTap"; instanceId: string }
   | { type: "setAttachment"; instanceId: string; targetInstanceId: string | null }
   | { type: "moveBattlefieldCard"; instanceId: string; x: number; y: number }
@@ -95,6 +96,10 @@ const BUILDERS: Record<GameActionType, Builder> = {
     const instanceId = textIdentifier(attributes.instanceId)
     if (!instanceId) return null
     return { type: "playFromHand", instanceId }
+  },
+  resolveSpell: (attributes) => {
+    const instanceId = textIdentifier(attributes.instanceId)
+    return instanceId ? { type: "resolveSpell", instanceId } : null
   },
   setAttachment: (attributes) => {
     const instanceId = textIdentifier(attributes.instanceId)

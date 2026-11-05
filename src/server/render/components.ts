@@ -233,8 +233,10 @@ function renderPlayer(options: {
       ${isCurrentPlayer ? "" : playerDetails}
 
       ${renderBattlefield({ player, isCurrentPlayer })}
-  ${renderStage10Commander(player, isCurrentPlayer)}
-  ${renderStage9Opening(player, isCurrentPlayer)}
+      ${renderStage12UtilityLane(player, isCurrentPlayer)}
+      ${renderStage12PlaneswalkerLane(player, isCurrentPlayer)}
+      ${renderStage10Commander(player, isCurrentPlayer)}
+      ${renderStage9Opening(player, isCurrentPlayer)}
 
       ${isCurrentPlayer ? playerDetails : ""}
     </section>
@@ -350,13 +352,8 @@ function renderHand(player: PublicPlayer): string {
     const fromCenter = index - midpoint
     const angle = fromCenter * step
     const drop = Math.min(12, Math.abs(fromCenter) * 3)
-    return actionButton({
-      action: { type: "playFromHand", instanceId: card.instanceId },
-      label: cardFace(card),
-      className: "hand-card",
-      preview: card,
-      cssStyle: `--stage08-hand-angle:${angle.toFixed(2)}deg;--stage08-hand-drop:${drop.toFixed(1)}px;--stage08-hand-order:${index + 1}`,
-    })
+    const style = `--stage08-hand-angle:${angle.toFixed(2)}deg;--stage08-hand-drop:${drop.toFixed(1)}px;--stage08-hand-order:${index + 1}`
+    return `<button type="button" class="hand-card" data-hand-play-instance-id="${attribute(card.instanceId)}" ${previewAttributes(card)} style="${attribute(style)}" aria-label="Drag ${attribute(card.name)} to your battlefield to play">${cardFace(card)}</button>`
   }).join("")
 
   return `<div class="hand-strip" data-hand-count="${hand.length}">${cards}</div>`
@@ -367,7 +364,8 @@ function renderBattlefield(options: {
   isCurrentPlayer: boolean
 }): string {
   const cards = options.player.battlefield
-    .filter((card) => !isLandCard(card) && !isFixedUtilityCard(card, options.player.battlefield))
+    .filter((card) => !isLandCard(card) && !isFixedUtilityCard(card, options.player.battlefield) &&
+      !isStage12PlaneswalkerCard(card, options.player.battlefield))
     .map((card) => renderBattlefieldCard({
       card,
       isCurrentPlayer: options.isCurrentPlayer,
@@ -380,8 +378,34 @@ function renderBattlefield(options: {
     }))
     .join("")
   const fixedLanes = renderFixedLanes(options)
+  const pendingSpells = renderPendingSpells(options.player, options.isCurrentPlayer)
 
-  return `<div class="battlefield"><div class="battlefield-canvas" data-battlefield-player-id="${attribute(options.player.id)}">${cards}${fixedLanes}</div></div>`
+  // Stage 12: the browser clones pendingSpells into one shared display at
+  // the middle divider; this original stays in the player component so
+  // server invalidations and owner-only Resolve permissions remain intact.
+  return `<div class="battlefield"><div class="battlefield-canvas" data-battlefield-player-id="${attribute(options.player.id)}">${cards}${fixedLanes}${pendingSpells}</div></div>`
+}
+
+// ===== Stage 11: face-up spells awaiting manual resolution =====
+// The list belongs to the player (and persists in SQLite), but is shown to
+// both seats. Only the controlling seat receives the Resolve action button.
+function renderPendingSpells(player: PublicPlayer, isCurrentPlayer: boolean): string {
+  const pending = player.pendingSpells ?? []
+  if (pending.length === 0) return ""
+  const entries = pending.map((spell) => {
+    const resolve = isCurrentPlayer
+      ? actionButton({ action: { type: "resolveSpell", instanceId: spell.instanceId }, label: "Resolve", className: "stage11-resolve-button", accessibleName: `Resolve ${spell.name} and move it to your graveyard` })
+      : `<span class="stage11-awaiting">Waiting for player</span>`
+    return `<div class="stage11-spell-card" data-instance-id="${attribute(spell.instanceId)}" ${previewAttributes(spell)}>
+      <img src="${attribute(spell.imageUrl)}" loading="lazy" alt="${attribute(spell.name)}" />
+      <span class="stage11-spell-name">${escapeHtml(spell.name)}</span>
+      ${resolve}
+    </div>`
+  }).join("")
+  return `<aside class="stage11-spell-area" aria-label="Spells awaiting resolution">
+    <div class="stage11-spell-heading">On the stack</div>
+    <div class="stage11-spell-cards">${entries}</div>
+  </aside>`
 }
 
 function renderBattlefieldCard(options: {
@@ -480,7 +504,7 @@ function isFixedUtilityCard(
   const type = card.typeLine ?? ""
   // Always exclude creatures, Equipment and Auras, even if an older imported
   // card mistakenly persisted isUtilityPermanent=true in the database.
-  if (card.isAttachment === true || /\b(?:Land|Creature|Aura|Equipment)\b/i.test(type)) return false
+  if (card.isAttachment === true || /\b(?:Land|Creature|Aura|Equipment|Planeswalker)\b/i.test(type)) return false
   if (card.isUtilityPermanent === false) return false
   if (card.isUtilityPermanent === true) return true
   return /\b(?:Artifact|Enchantment)\b/i.test(type)
@@ -495,11 +519,37 @@ function renderFixedLanes(options: {
 }): string {
   const battlefield = options.player.battlefield
   const lands = battlefield.filter(isLandCard)
-  const utilities = battlefield.filter((card) => isFixedUtilityCard(card, battlefield))
-  if (lands.length === 0 && utilities.length === 0) return ""
-  return `<div class="compact-special-lanes" aria-label="Fixed permanent areas">
-    ${lands.length ? renderFixedLane(lands, "Lands", "stage7-land-zone", options.isCurrentPlayer) : ""}
-    ${utilities.length ? renderFixedLane(utilities, "Artifacts / Enchantments", "compact-utility-zone", options.isCurrentPlayer, true) : ""}
+  if (lands.length === 0) return ""
+  return `<div class="compact-special-lanes" aria-label="Land area">
+    ${renderFixedLane(lands, "Lands", "stage7-land-zone", options.isCurrentPlayer)}
+  </div>`
+}
+
+// ===== Stage 12: fixed lanes without creating new MTG zones =====
+// Utilities sit directly LEFT of the library, not next to lands. Both remain
+// in player.battlefield and retain their action/stack behavior.
+function renderStage12UtilityLane(player: PublicPlayer, isCurrentPlayer: boolean): string {
+  const utilityCards = player.battlefield.filter((card) => isFixedUtilityCard(card, player.battlefield))
+  if (utilityCards.length === 0) return ""
+  return `<div class="stage12-utility-area" aria-label="Artifacts and enchantments">
+    ${renderFixedLane(utilityCards, "Artifacts / Enchantments", "compact-utility-zone", isCurrentPlayer, true)}
+  </div>`
+}
+
+// Planeswalkers are still ordinary battlefield cards. We recognize their
+// typeLine even on non-standard multi-type cards; attached walkers remain on
+// the main battlefield so attachment positioning is preserved.
+function isStage12PlaneswalkerCard(card: PublicBattlefieldCard, battlefield: readonly PublicBattlefieldCard[]): boolean {
+  return !isLandCard(card) && /\bPlaneswalker\b/i.test(card.typeLine ?? "") &&
+    !card.attachedTo && !battlefield.some((other) => other.attachedTo === card.instanceId)
+}
+
+function renderStage12PlaneswalkerLane(player: PublicPlayer, isCurrentPlayer: boolean): string {
+  const walkers = player.battlefield.filter((card) => isStage12PlaneswalkerCard(card, player.battlefield))
+  if (walkers.length === 0) return ""
+  return `<div class="stage12-planeswalker-area" aria-label="Planeswalker area">
+    <span class="stage12-planeswalker-label">Planeswalkers</span>
+    ${renderFixedLane(walkers, "Planeswalkers", "stage12-planeswalker-zone", isCurrentPlayer, true)}
   </div>`
 }
 
@@ -645,6 +695,19 @@ function renderZoneLanes(options: { player: PublicPlayer; isCurrentPlayer: boole
       : `<span class="zone-preview-empty">
           ${topCard ? escapeHtml(topCard.name) : "Empty"}
         </span>`
+
+    // Stage 12: Exile is a small inspector button rather than a card-sized
+    // pile. Its complete searchable zone-source remains in the DOM.
+    if (zone === "exile") {
+      return `<div class="zone-lane stage12-exile-lane" data-zone="exile">
+        <button type="button" class="zone-preview stage12-exile-button" data-open-zone="exile"
+          aria-label="Open exile: ${zoneCards.length} cards" title="Exile (${zoneCards.length})">
+          <span class="stage12-exile-icon" aria-hidden="true">✧</span>
+          <span class="stage12-exile-count">Exile ${zoneCards.length}</span>
+        </button>
+        <div class="zone-source" hidden>${cards}</div>
+      </div>`
+    }
 
     return `
       <div class="zone-lane" data-zone="${zone}">

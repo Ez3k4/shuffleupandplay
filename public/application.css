@@ -4215,3 +4215,303 @@ main.layout[data-game] .compact-toolbar-section .left-rail.panel {
   padding: 0 0.2rem;
   line-height: 1.2;
 }
+
+
+/* ================================================================
+ * STAGE 11 — Drag-only hand and pending instant/sorcery display
+ * The spell area is viewable by both seats and aligned above/below
+ * the library pile. It is NOT an independent MTG rules engine.
+ * ================================================================ */
+#players-area .battlefield-canvas > .stage11-spell-area {
+  position: absolute;
+  z-index: 35;
+  right: calc(2 * var(--stage11-zone-width, 98px) + 1rem);
+  bottom: 0.5rem;
+  width: max-content;
+  max-width: min(47vw, 360px);
+  pointer-events: auto;
+  padding: 0.4rem;
+  border: 1px solid rgba(205, 188, 150, 0.32);
+  border-radius: 8px;
+  background: rgba(10, 17, 22, 0.88);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
+}
+#players-area .opponent-seat .battlefield-canvas > .stage11-spell-area {
+  top: 0.5rem;
+  bottom: auto;
+}
+#players-area .stage11-spell-heading {
+  color: #e9d0a3;
+  font-size: 0.68rem;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 0.28rem;
+}
+#players-area .stage11-spell-cards {
+  display: flex;
+  gap: 0.3rem;
+  overflow-x: auto;
+  max-width: 100%;
+  padding-bottom: 0.16rem;
+}
+#players-area .stage11-spell-card {
+  display: flex;
+  flex: 0 0 105px;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 0;
+  gap: 0.2rem;
+}
+#players-area .stage11-spell-card > img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 488/680;
+  height: auto;
+  object-fit: contain;
+  background: #080c11;
+  border: 2px solid #07090c;
+  border-radius: 5px;
+}
+#players-area .stage11-spell-name {
+  color: #f1e8d7;
+  font-size: 0.65rem;
+  line-height: 1.15;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+#players-area .stage11-resolve-button {
+  width: 100%;
+  min-height: 30px;
+  padding: 0.24rem 0.35rem;
+  border-radius: 5px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: #7b5525;
+}
+#players-area .stage11-awaiting {
+  color: #d3c2a5;
+  font-size: 0.62rem;
+  text-align: center;
+}
+#players-area .your-seat .hand-card { cursor: grab; }
+#players-area .your-seat .hand-card:active { cursor: grabbing; }
+@media (max-width: 700px) {
+  #players-area .battlefield-canvas > .stage11-spell-area {
+    --stage11-zone-width: 68px;
+    right: calc(2 * var(--stage11-zone-width) + 0.6rem);
+    max-width: min(48vw, 225px);
+  }
+  #players-area .stage11-spell-card { flex-basis: 76px; }
+}
+
+
+/* ================================================================
+ * STAGE 12 — Shared spell midpoint, small Exile, utility and walker lanes
+ * These are presentation-only areas: existing actions, persisted card IDs,
+ * and real MTG zones are unchanged. The actual UI still uses a 2-seat grid.
+ * ================================================================ */
+
+/* Stage 12A: one shared overlay across the seat divider. The actual spell
+ * nodes remain inside each player component (hidden), while stage12-spells.js
+ * mirrors them here. This avoids clipping by either battlefield and shows
+ * both players' spells in one central spot. */
+main.layout[data-game] #players-area { position: relative; }
+#players-area .player-section .stage11-spell-area { display: none !important; }
+#players-area > .stage12-shared-spell-stack {
+  position: absolute;
+  z-index: 110;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 0.5rem;
+  max-width: min(80vw, 700px);
+  max-height: min(54dvh, 350px);
+  overflow: auto;
+  padding: 0.4rem;
+  border: 1px solid rgba(205, 188, 150, 0.36);
+  border-radius: 10px;
+  background: rgba(11, 22, 26, 0.94);
+  box-shadow: 0 12px 25px #0009;
+  pointer-events: auto;
+}
+#players-area > .stage12-shared-spell-stack[hidden] { display: none !important; }
+#players-area .stage12-shared-spell-stack > .stage12-spell-copy {
+  position: static;
+  inset: auto;
+  transform: none;
+  display: block !important;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(37vw, 330px);
+  margin: 0;
+  padding: 0.15rem;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+#players-area .stage12-shared-spell-stack .stage11-spell-cards { overflow-x: auto; }
+@media (max-width: 700px) {
+  #players-area > .stage12-shared-spell-stack { max-width: 94vw; padding: 0.25rem; }
+  #players-area .stage12-shared-spell-stack > .stage12-spell-copy { max-width: 44vw; }
+}
+
+/* Stage 12B: Exile remains clickable/searchable but takes only a small slot.
+ * The other two piles retain full card backs and existing right-click actions.
+ * Update the calculated reserved width too: this gives hand/permanent cards
+ * a little more horizontal room without putting them behind the piles. */
+#players-area .player-section {
+  --stage12-exile-width: 54px;
+  --stage12-pile-reserve: calc(2 * var(--stage11-pile-width, 98px) + var(--stage12-exile-width) + 2 * var(--stage11-pile-gap, 0.45rem) + 16px);
+  --tabletop-pile-reserve: var(--stage12-pile-reserve);
+}
+#players-area .your-seat .player-zones {
+  --zone-pile-width: calc(2 * var(--zone-card-width) + var(--stage12-exile-width) + 2 * var(--zone-pile-gap));
+}
+#players-area .opponent-seat {
+  --opponent-pile-width: calc(2 * var(--zone-card-width) + var(--stage12-exile-width) + 2 * var(--opponent-pile-gap));
+}
+#players-area .player-zones .zone-lanes > .stage12-exile-lane {
+  flex: 0 0 var(--stage12-exile-width);
+  width: var(--stage12-exile-width);
+  min-width: var(--stage12-exile-width);
+  display: flex;
+  align-items: end;
+  justify-content: center;
+}
+#players-area .opponent-seat .player-zones .zone-lanes > .stage12-exile-lane { align-items: start; }
+#players-area .player-zones .stage12-exile-lane > .stage12-exile-button {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  height: 52px;
+  aspect-ratio: auto;
+  padding: 0.25rem 0.12rem;
+  border: 1px solid rgba(206, 185, 140, 0.65);
+  border-radius: 6px;
+  background: rgba(21, 35, 41, 0.95);
+  color: #f5e9cd;
+  font-size: 0.7rem;
+  line-height: 1.1;
+  box-shadow: none;
+  cursor: pointer;
+}
+#players-area .stage12-exile-icon { font-size: 1.2rem; line-height: 1; }
+#players-area .stage12-exile-count { font-size: 0.62rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (max-width: 700px) {
+  #players-area .player-section { --stage12-exile-width: 44px; }
+  #players-area .player-zones .stage12-exile-lane > .stage12-exile-button { height: 43px; }
+}
+
+/* Stage 12C: utilities are adjacent to and LEFT of Library, along the same
+ * outer edge. Unlike the old combined overlay, this container is a sibling of
+ * the battlefield; it remains visible when the battlefield scrolls. */
+#players-area .player-section > .stage12-utility-area,
+#players-area .player-section > .stage12-planeswalker-area {
+  /* These lanes are siblings of the canvas, so re-declare its card sizing. */
+  --stage7-land-width: 76px;
+  --stage7-land-height: 107px;
+}
+#players-area .player-section > .stage12-utility-area {
+  position: absolute;
+  z-index: 38;
+  right: calc(var(--stage12-pile-reserve) + 0.35rem);
+  bottom: 0.4rem;
+  top: auto;
+  width: max-content;
+  max-width: min(44vw, calc(100% - var(--stage12-pile-reserve) - 2rem));
+  min-width: 0;
+  pointer-events: auto;
+}
+#players-area .opponent-seat > .stage12-utility-area { top: 0.4rem; bottom: auto; }
+#players-area .stage12-utility-area > .stage7-land-zone {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  width: max-content;
+  max-width: 100%;
+  padding: 0.12rem 0.2rem;
+  border: 0;
+  border-radius: 5px;
+  background: rgba(224,232,219,0.055);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+#players-area .stage12-utility-area .stage7-land-row {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 0.05rem;
+  scrollbar-width: thin;
+}
+
+/* Stage 12D: Planeswalkers keep their battlefield identity and normal
+ * per-card quick-action menus, but visually gather to the LEFT of Commander.
+ * The container only appears when a player actually controls one. */
+#players-area .player-section > .stage12-planeswalker-area {
+  position: absolute;
+  z-index: 43;
+  right: calc(clamp(86px, 9vw, 128px) + 0.9rem);
+  top: 3rem;
+  bottom: auto;
+  width: max-content;
+  max-width: min(24vw, 250px);
+  min-width: 0;
+  pointer-events: auto;
+}
+#players-area .opponent-seat > .stage12-planeswalker-area {
+  top: auto;
+  bottom: 0.55rem;
+  right: calc(clamp(74px, 8vw, 104px) + 0.9rem);
+}
+#players-area .stage12-planeswalker-label {
+  display: block;
+  margin: 0 0 0.16rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #e6d6b2;
+  text-align: center;
+}
+#players-area .stage12-planeswalker-area > .stage7-land-zone {
+  position: relative;
+  inset: auto;
+  width: max-content;
+  max-width: 100%;
+  padding: 0.18rem 0.2rem;
+  border: 1px solid rgba(204, 174, 109, 0.4);
+  border-radius: 7px;
+  background: rgba(16, 27, 29, 0.86);
+  box-shadow: none;
+}
+#players-area .stage12-planeswalker-area .stage7-land-row {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 0.06rem;
+}
+@media (max-width: 700px) {
+  #players-area .player-section > .stage12-utility-area,
+  #players-area .player-section > .stage12-planeswalker-area {
+    --stage7-land-width: 58px;
+    --stage7-land-height: 88px;
+  }
+  #players-area .player-section > .stage12-planeswalker-area {
+    right: calc(78px + 0.4rem);
+    top: 2.9rem;
+    max-width: 27vw;
+  }
+  #players-area .opponent-seat > .stage12-planeswalker-area {
+    right: calc(78px + 0.4rem);
+    top: auto;
+    bottom: 0.55rem;
+  }
+  #players-area .player-section > .stage12-utility-area {
+    max-width: min(32vw, calc(100% - var(--stage12-pile-reserve) - 1rem));
+  }
+}

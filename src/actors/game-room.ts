@@ -247,6 +247,7 @@ export class GameRoom extends Actor {
         library: result.cards,
         hand: [],
         battlefield: [],
+        pendingSpells: [],
         graveyard: [],
         exile: [],
         isSearchingDeck: false,

@@ -67,6 +67,8 @@ export type Player = {
   library: Card[]
   hand: Card[]
   battlefield: BattlefieldCard[]
+  /** Instants/sorceries that were cast and are awaiting manual resolution. */
+  pendingSpells?: Card[]
   graveyard: Card[]
   exile: Card[]
   isSearchingDeck: boolean
@@ -108,6 +110,8 @@ export type PublicPlayer = {
   library: PublicCard[]
   hand: PublicCard[]
   battlefield: PublicBattlefieldCard[]
+  /** Public, face-up pending spells; this is not a new standard MTG zone. */
+  pendingSpells?: PublicCard[]
   graveyard: PublicCard[]
   exile: PublicCard[]
   isSearchingDeck: boolean
@@ -161,4 +165,6 @@ export type SeatFingerprint = PlayerSummary & {
   /** Commander state must invalidate the owning player's rendered component. */
   commanderInstanceId: string | null
   commanderInZone: boolean
+  /** Observe spell arrivals/resolutions, even if permanent counts do not change. */
+  pendingSpellIds: string[]
 }

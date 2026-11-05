@@ -89,6 +89,7 @@ export function seatFingerprints(room: Room): SeatFingerprint[] {
       ...summary,
       commanderInstanceId: player?.commanderInstanceId ?? null,
       commanderInZone: Boolean(player?.commander),
+      pendingSpellIds: (player?.pendingSpells ?? []).map((card) => card.instanceId),
       battlefield: (player?.battlefield ?? []).map((card) => ({
         instanceId: card.instanceId,
         attachedTo: card.attachedTo ?? null,
@@ -119,6 +120,7 @@ function publicPlayer(options: { player: Player; sessionId: string | null }): Pu
     deckName: player.deckName,
     deckStatus: player.deckStatus,
     battlefield: player.battlefield,
+    pendingSpells: player.pendingSpells ?? [],
     ...(player.commander ? { commander: player.commander } : {}),
     ...(player.commanderInstanceId ? { commanderInstanceId: player.commanderInstanceId } : {}),
     graveyard: player.graveyard,

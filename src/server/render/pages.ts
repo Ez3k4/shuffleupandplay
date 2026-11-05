@@ -19,6 +19,8 @@ const PUBLIC_DIRECTORY = resolve(import.meta.dirname, "../../../public")
 const ASSET_NAMES = [
   "application.css",
   "shuffle.js",
+  // Stage 12 DOM overlay is imported by shuffle.js; stamp it for cache safety.
+  "stage12-spells.js",
   "table-worker.js",
   "drag-math.js",
   "morph.js",
