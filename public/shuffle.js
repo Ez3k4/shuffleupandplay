@@ -45,6 +45,14 @@ const TAP_SLOP_PIXELS = 10
 const COUNTER_GRAB = { x: 18, y: 12 }
 const DECK_COLORS = ["W", "U", "B", "R", "G", "C"]
 
+// Online tables use the server's authoritative state by default. Opening a
+// separate persistent SQLite mirror for each room can exhaust Firefox's OPFS
+// SyncAccessHandle pool after several tables have been visited.
+// Explicit opt-in is retained for diagnosing/recovering an older local queue:
+//   ?localMirror=1
+// Do not remove old browser storage without first checking for unsent moves.
+const USE_LOCAL_MOVE_QUEUE = new URLSearchParams(window.location.search).get("localMirror") === "1"
+
 let mirror = null
 
 function start(game) {
@@ -102,7 +110,10 @@ function start(game) {
     createWebSocket: (target) => {
       const socket = new WebSocket(target)
       socket.addEventListener("open", () => {
-        fallback.stop()
+        // With server-only synchronization, keep the low-frequency long-poll
+        // active: it repairs missed updates even if the socket stays open.
+        if (USE_LOCAL_MOVE_QUEUE) fallback.stop()
+        else fallback.startLater()
         setConnectionState("connected")
       })
       socket.addEventListener("close", () => {
@@ -134,9 +145,15 @@ function start(game) {
   client.subscribe({ actorType, actorId, payloads: ["game"] })
   client.connect()
 
-  void startMirror({ actorId, seat, currentPlayerId, workerUrl }).then((started) => {
-    mirror = started
-  })
+  if (USE_LOCAL_MOVE_QUEUE) {
+    void startMirror({ actorId, seat, currentPlayerId, workerUrl }).then((started) => {
+      mirror = started
+    })
+  } else {
+    // No browser SQLite, worker, or speculative edits in normal online play.
+    // The queued-moves banner is only relevant to the opt-in local mirror.
+    showQueuedMoves(0)
+  }
 
   wireActions(game, actorId)
   wireStage09HandDrag(game, actorId)
@@ -481,18 +498,26 @@ async function queueAction(action) {
 }
 
 async function postAction(actorId, action, gestureKey) {
-  const response = await fetch(`/api/tables/${actorId}/actions`, {
-    method: "POST",
-    credentials: "same-origin",
-    headers: {
-      "content-type": "application/json",
-      prefer: "respond-async",
-      "idempotency-key": gestureKey,
-    },
-    body: JSON.stringify({ action }),
-  })
-  if (!response.ok) showToast("That action was not accepted. Try again.")
-  return response.ok
+  try {
+    const response = await fetch(`/api/tables/${actorId}/actions`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "content-type": "application/json",
+        prefer: "respond-async",
+        "idempotency-key": gestureKey,
+      },
+      body: JSON.stringify({ action }),
+    })
+    if (!response.ok) showToast("That action was not accepted. Try again.")
+    return response.ok
+  } catch {
+    // The server did not confirm receipt. Do not optimistically mutate the
+    // display or blindly replay the action: the request may have reached it.
+    showToast("Connection problem: check the table before retrying that action.")
+    setConnectionState("reconnecting")
+    return false
+  }
 }
 
 function newGestureKey() {
