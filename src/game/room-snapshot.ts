@@ -20,6 +20,7 @@ export function roomPayload(options: RoomPayloadOptions): RoomPayload {
 
   return {
     space: {
+      maxPlayers: room.maxPlayers ?? 2,
       id: room.id,
       code: room.code,
       name: room.name,

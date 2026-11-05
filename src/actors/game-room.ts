@@ -20,7 +20,12 @@ import {
 } from "../game/room-snapshot.ts"
 import type { Card, Player, PlayerSummary, Room, RoomPayload } from "../game/types.ts"
 
-const MAXIMUM_PLAYERS = 2
+const MAXIMUM_PLAYERS = 4
+
+export function allowedPlayerCount(value: unknown): 2 | 3 | 4 {
+  const number = Number(value)
+  return number === 3 || number === 4 ? number : 2
+}
 const MAXIMUM_ROOM_NAME_LENGTH = 40
 const MAXIMUM_PLAYER_NAME_LENGTH = 28
 const DEFAULT_ROOM_NAME = "Gaming Table"
@@ -45,7 +50,7 @@ type DeckEffectArguments = {
 
 export class GameRoom extends Actor {
   static override readonly actorType = "GameRoom"
-  static override readonly stateVersion = 6
+  static override readonly stateVersion = 7
   static override readonly migrations = [
     {
       from: 1,
@@ -107,6 +112,16 @@ export class GameRoom extends Actor {
         }
       },
     },
+    {
+      from: 6,
+      to: 7,
+      migrate: (state: JsonObject): JsonObject => {
+        // Preserve existing two-player tables when upgrading to multiplayer.
+        const room = state.room
+        if (!isRecord(room)) return state
+        return { ...state, room: { maxPlayers: 2, ...room } }
+      },
+    },
   ]
 
   static override readonly payloads = {
@@ -139,12 +154,15 @@ export class GameRoom extends Actor {
       lifeTotals: broadcastValue(broadcast.lifeTotals),
       seatOne: broadcastInvalidation(seats.find((seat) => seat.seat === 1) ?? null),
       seatTwo: broadcastInvalidation(seats.find((seat) => seat.seat === 2) ?? null),
+      seatThree: broadcastInvalidation(seats.find((seat) => seat.seat === 3) ?? null),
+      seatFour: broadcastInvalidation(seats.find((seat) => seat.seat === 4) ?? null),
     }
   }
 
   createRoom(options: {
     code: string
     roomName: string
+    maxPlayers?: number
     playerName: string
     sessionId: string
   }): "created" {
@@ -174,6 +192,7 @@ export class GameRoom extends Actor {
       }),
       version: 1,
       idleSweepAt: null,
+      maxPlayers: allowedPlayerCount(options.maxPlayers),
       players: [creator],
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -186,8 +205,9 @@ export class GameRoom extends Actor {
     const room = this.#requireRoom()
     if (playerForSession({ room, sessionId: options.sessionId })) return "alreadyJoined"
 
-    if (room.players.length >= MAXIMUM_PLAYERS) {
-      this.reject("roomFull", { message: "This space already has two players" })
+    const capacity = Math.min(MAXIMUM_PLAYERS, allowedPlayerCount(room.maxPlayers))
+    if (room.players.length >= capacity) {
+      this.reject("roomFull", { message: `This table is full (${capacity} players)` })
     }
 
     const seat = room.players.length + 1

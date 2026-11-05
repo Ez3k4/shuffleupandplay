@@ -88,7 +88,7 @@ async function currentEnvelope(options: {
     instanceId: incarnation.instanceId,
     revision: incarnation.revision,
     observables: { ...broadcastObservables(room) },
-    invalidations: ["seatOne", "seatTwo"],
+    invalidations: ["seatOne", "seatTwo", "seatThree", "seatFour"],
   }
 }
 

@@ -79,6 +79,8 @@ export type Player = {
 }
 
 export type Room = {
+  /** Set by the host at creation. Missing on older two-player saves. */
+  maxPlayers?: 2 | 3 | 4
   id: string
   code: string
   name: string
@@ -122,6 +124,7 @@ export type PublicPlayer = {
 }
 
 export type PublicRoom = {
+  maxPlayers?: 2 | 3 | 4
   id: string
   code: string
   name: string

@@ -523,6 +523,7 @@ async function tryCreateRoom(options: {
       .createRoom({
         code: roomCode,
         roomName: String(body.tableName ?? body.spaceName ?? ""),
+        maxPlayers: Number(body.maxPlayers ?? 2),
         playerName: String(body.playerName ?? ""),
         sessionId: context.sessionId,
       })

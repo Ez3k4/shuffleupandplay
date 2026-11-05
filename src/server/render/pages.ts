@@ -24,6 +24,7 @@ const ASSET_NAMES = [
   // Stage 13 browser imports need fingerprints when the feature is updated.
   "stage13-drop-target.js",
   "stage13-wallpapers.js",
+  "stage16-opponents.js",
   "table-worker.js",
   "drag-math.js",
   "morph.js",
@@ -95,7 +96,7 @@ function absolute(path: string): string {
 }
 
 export const PRODUCT_DESCRIPTION =
-  "Play Magic remotely with an Archidekt deck. Draw, tap, move, and track cards on a shared two-player table."
+  "Play Magic remotely with an Archidekt deck. Draw, tap, move, and track cards with 2–4 players."
 
 export type LobbyErrorField = "playerName" | "tableCode"
 
@@ -125,7 +126,7 @@ const LOBBY_MESSAGES: Record<
   tableFull: {
     field: "tableCode",
     message: "This table is full.",
-    action: "Two players are already seated. Ask the host for a new table.",
+    action: "This table is full. Ask the host for a new table.",
   },
   invalidCode: {
     field: "tableCode",
@@ -260,6 +261,12 @@ export function lobbyPage(options: {
           ${describedBy({ error: options.error, field: "playerName" })} />
         <label for="createTableName">Table name</label>
         <input id="createTableName" name="tableName" maxlength="40" value="Kitchen Table" />
+        <label for="createMaxPlayers">Players</label>
+        <select id="createMaxPlayers" name="maxPlayers" aria-label="Number of players">
+          <option value="2" selected>2 players</option>
+          <option value="3">3 players</option>
+          <option value="4">4 players</option>
+        </select>
         <button type="submit">Create table</button>
       </form>`
 
@@ -326,7 +333,7 @@ export function gamePage(options: {
     shareUrl: options.shareUrl,
   }
   const declarations = componentDeclarations(options.seat)
-  const opponentSeat = options.seat === 1 ? 2 : 1
+  const opponentSeats = [1, 2, 3, 4].filter((seat) => seat !== options.seat)
 
   return layout({
     title: `Shuffle Up and Play · ${escapeHtml(room.name)}`,
@@ -376,8 +383,11 @@ export function gamePage(options: {
 
   <div class="board-layout">
     <section class="main-table panel">
-      <div id="players-area">
-        ${componentSlot({ name: "player", key: opponentSeat, context })}
+      <div id="players-area" data-stage16-players>
+        ${componentSlot({ name: "opponentRoster", context })}
+        ${opponentSeats.map((seat) => `<div class="stage16-opponent-panel" data-stage16-opponent-panel="${seat}" hidden>
+          ${componentSlot({ name: "player", key: seat, context })}
+        </div>`).join("")}
         ${componentSlot({ name: "player", key: options.seat, context })}
       </div>
     </section>
@@ -555,35 +565,43 @@ function connectionStatus(): string {
 }
 
 export function componentDeclarations(seat: number): ComponentDeclaration[] {
-  const opponentSeat = seat === 1 ? 2 : 1
-  const seatObservable = (value: number) => (value === 1 ? "seatOne" : "seatTwo")
+  const observable = (value: number) => (["seatOne", "seatTwo", "seatThree", "seatFour"] as const)[value - 1] ?? "seatOne"
+  const all = [1, 2, 3, 4]
+  const opponents = all.filter((value) => value !== seat)
 
+  // Register every possible seat now: players can join later without a reload.
   return [
     {
       name: "playerControls",
       key: seat,
-      observes: [seatObservable(seat)],
+      observes: [observable(seat)],
       batch: "game",
       strategy: "morph",
     },
     {
       name: "player",
       key: seat,
-      observes: [seatObservable(seat)],
+      observes: [observable(seat)],
       batch: "game",
       strategy: "morph",
     },
-    {
+    ...opponents.map((opponent): ComponentDeclaration => ({
       name: "player",
-      key: opponentSeat,
-      observes: [seatObservable(opponentSeat)],
+      key: opponent,
+      observes: [observable(opponent)],
       batch: "game",
       strategy: "morph",
+    })),
+    {
+      name: "opponentRoster",
+      observes: all.map(observable),
+      batch: "game",
+      strategy: "replace",
     },
     {
       name: "librarySearch",
       key: seat,
-      observes: [seatObservable(seat)],
+      observes: [observable(seat)],
       batch: "game",
       strategy: "replace",
     },
@@ -595,7 +613,7 @@ export function componentDeclarations(seat: number): ComponentDeclaration[] {
     },
     {
       name: "tableStatus",
-      observes: [seatObservable(seat), seatObservable(opponentSeat)],
+      observes: all.map(observable),
       batch: "game",
       strategy: "replace",
     },

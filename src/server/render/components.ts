@@ -14,6 +14,7 @@ export const COMPONENT_NAMES = [
   "librarySearch",
   "gameResult",
   "tableStatus",
+  "opponentRoster",
 ] as const
 
 export type ComponentName = (typeof COMPONENT_NAMES)[number]
@@ -46,24 +47,39 @@ export function renderComponent(options: {
       return renderGameResult(context)
     case "tableStatus":
       return renderTableStatus(context)
+    case "opponentRoster":
+      return renderOpponentRoster(context)
   }
+}
+
+/** Stage 16: names and life totals of ALL opponents; only the selected board is shown. */
+function renderOpponentRoster(context: ComponentRenderContext): string {
+  const room = context.payload.space
+  const opponents = (room?.players ?? []).filter((player) => player.seat !== context.seat)
+  return `<nav class="stage16-opponent-roster" aria-label="Choose opponent battlefield">
+    ${opponents.map((player) => `<button type="button" class="stage16-opponent-choice"
+      data-stage16-select-seat="${player.seat}" aria-pressed="false"
+      aria-label="View ${attribute(player.name)}'s battlefield, ${player.life} life">
+      <span class="stage16-opponent-name">${escapeHtml(player.name)}</span>
+      <span class="stage16-opponent-life" title="Life total">${player.life} ♥</span>
+    </button>`).join("")}
+  </nav>`
 }
 
 function renderTableStatus(context: ComponentRenderContext): string {
   const room = context.payload.space
-  const opponentSeat = context.seat === 1 ? 2 : 1
-  if (room?.players.some((player) => player.seat === opponentSeat)) return ""
+  const maxPlayers = room?.maxPlayers ?? 2
+  if ((room?.players.length ?? 0) >= maxPlayers) return ""
 
-  const shareUrl = `${context.shareUrl}`
   return `<section class="panel waiting-panel">
-    <h2>Waiting for your opponent</h2>
-    <p>Send the invite link. Opening it fills in the table code automatically, so your opponent only types a name.</p>
+    <h2>Waiting for players</h2>
+    <p>Send the invite link to the other players.</p>
     <div class="waiting-actions">
-      <button type="button" class="primary-action" data-copy-text="${attribute(shareUrl)}">Copy invite link</button>
-      <button type="button" class="secondary-action" data-share-url="${attribute(shareUrl)}" data-share-hidden hidden>Share…</button>
+      <button type="button" class="primary-action" data-copy-text="${attribute(context.shareUrl)}">Copy invite link</button>
+      <button type="button" class="secondary-action" data-share-url="${attribute(context.shareUrl)}" data-share-hidden hidden>Share…</button>
     </div>
     <p class="waiting-code">Table code <strong>${escapeHtml(context.roomCode)}</strong></p>
-    <p class="waiting-count">${room?.players.length ?? 1} of 2 players connected</p>
+    <p class="waiting-count">${room?.players.length ?? 1} of ${maxPlayers} players connected</p>
   </section>`
 }
 
@@ -878,7 +894,7 @@ function renderGameResult(context: ComponentRenderContext): string {
   if (current && current.life <= 0) {
     return `<div class="game-result-banner lose" aria-live="polite"><p class="game-result-banner-text">YOU LOSE</p></div>`
   }
-  if (opponents.some((player) => player.life <= 0)) {
+  if (opponents.length > 0 && room.players.length === (room.maxPlayers ?? 2) && opponents.every((player) => player.life <= 0)) {
     return `<div class="game-result-banner win" aria-live="polite"><p class="game-result-banner-text">YOU WIN</p></div>`
   }
   return ""

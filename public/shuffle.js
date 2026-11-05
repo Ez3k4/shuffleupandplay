@@ -8,6 +8,7 @@ import { morph } from "./morph.js"
 import { mountStage12SpellOverlay } from "./stage12-spells.js"
 import { findStage13DropTarget } from "./stage13-drop-target.js"
 import { mountStage13Wallpapers, mountStage14LobbyWallpaper } from "./stage13-wallpapers.js"
+import { mountStage16OpponentSelector } from "./stage16-opponents.js"
 
 /*
  * SHUFFLE.JS MAINTAINER GUIDE
@@ -158,6 +159,7 @@ function start(game) {
   wireZoneInspector(game)
   mountStage12SpellOverlay(game)
   mountStage13Wallpapers(game)
+  mountStage16OpponentSelector(game)
   wireCopyButton()
   wireTooltips()
   wireCardTools(game)
@@ -2229,7 +2231,7 @@ function wireStage11FourCardTiers(gameRoot) {
   function update() {
     const locations = [
       ['you', '#players-area .your-seat', 'Your'],
-      ['opponent', '#players-area .opponent-seat', 'Opponent']
+      ['opponent', '#players-area .stage16-opponent-panel:not([hidden]) .opponent-seat', 'Opponent']
     ]
     for (const [key, seatSelector, label] of locations) {
       const seat = gameRoot.querySelector(seatSelector)
