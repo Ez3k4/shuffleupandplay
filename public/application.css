@@ -4612,3 +4612,34 @@ body.stage14-lobby-background .layout:has(.lobby-panel) .stacked-form {
 #players-area[data-stage13-wallpapers-ready] .opponent-seat .battlefield-canvas::before {
   background-image: var(--stage13-wallpaper-opponent, none);
 }
+
+/* ================================================================
+ * STAGE 16A — Center the opponent name and life in classic 1v1
+ * Keep the zone totals to the right; narrow screens wrap them below.
+ * ================================================================ */
+#players-area .opponent-seat .zone-summary {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  padding-inline: 0.9rem;
+}
+#players-area .opponent-seat .zone-summary-player,
+#players-area .opponent-seat .zone-summary-life { flex: 0 0 auto; }
+#players-area .opponent-seat .zone-summary-info {
+  position: absolute;
+  right: 0.8rem;
+  top: 50%;
+  transform: translateY(-50%);
+  margin: 0;
+}
+@media (max-width: 1000px) {
+  #players-area .opponent-seat .zone-summary-info {
+    position: static;
+    flex: 1 0 100%;
+    transform: none;
+    justify-content: center;
+  }
+}
