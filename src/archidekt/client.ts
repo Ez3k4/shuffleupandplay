@@ -229,16 +229,59 @@ function expandCard(entry: Record<string, unknown>): Card[] {
   const displayName = stringValue(card?.displayName, "")
   const name = displayName || stringValue(oracleCard?.name, "Unknown Card")
 
+  const typeLine = cardTypeLine({ card, oracleCard })
+  const isLand = isLandType({ card, oracleCard, name })
+  const isAttachment = isAttachmentType({ card, oracleCard })
+  const isCreature = /\bCreature\b/i.test(typeLine)
+  const isUtilityPermanent = !isLand && !isCreature && !isAttachment &&
+    /\b(?:Artifact|Enchantment)\b/i.test(typeLine) &&
+    !/\b(?:Aura|Equipment)\b/i.test(typeLine)
+  const printedPower = printedStat(oracleCard?.power) ?? printedStat(card?.power)
+  const printedToughness = printedStat(oracleCard?.toughness) ?? printedStat(card?.toughness)
+
   return Array.from({ length: quantity }, () => ({
     instanceId: randomUUID(),
     name,
     scryfallId,
     imageUrl: scryfallImageUrl(scryfallId),
+    artCropUrl: scryfallArtCropUrl(scryfallId),
+    ...(typeLine ? { typeLine } : {}),
+    ...(printedPower !== undefined ? { printedPower } : {}),
+    ...(printedToughness !== undefined ? { printedToughness } : {}),
+    isCreature,
+    isUtilityPermanent,
     tapped: false,
     isManaSource: isManaSource(oracleCard),
-    isLand: isLandType({ card, oracleCard, name }),
-    isAttachment: isAttachmentType({ card, oracleCard }),
+    isLand,
+    isAttachment,
   }))
+}
+
+// Normalize either a printed type line or an array of type names.
+// Unknown metadata leaves a permanent in the normal battlefield area.
+function cardTypeLine(options: {
+  card: Record<string, unknown> | null
+  oracleCard: Record<string, unknown> | null
+}): string {
+  const candidates = [
+    options.oracleCard?.typeLine, options.oracleCard?.type_line,
+    options.card?.typeLine, options.card?.type_line,
+    options.oracleCard?.types, options.card?.types,
+  ]
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim()) return value.trim()
+    if (Array.isArray(value)) {
+      const parts = value.filter((part): part is string => typeof part === "string")
+      if (parts.length) return parts.join(" ")
+    }
+  }
+  return ""
+}
+
+function printedStat(value: unknown): string | undefined {
+  if (typeof value === "string" && value.trim()) return value.trim()
+  if (typeof value === "number" && Number.isFinite(value)) return String(value)
+  return undefined
 }
 
 // Archidekt can expose printed/oracle type information in different fields.
@@ -292,6 +335,10 @@ function isManaSource(oracleCard: Record<string, unknown> | null): boolean {
 
 function scryfallImageUrl(scryfallId: string): string {
   return `https://cards.scryfall.io/normal/front/${scryfallId[0]}/${scryfallId[1]}/${scryfallId}.jpg`
+}
+
+function scryfallArtCropUrl(scryfallId: string): string {
+  return `https://cards.scryfall.io/art_crop/front/${scryfallId[0]}/${scryfallId[1]}/${scryfallId}.jpg`
 }
 
 function shuffle<Item>(items: Item[]): Item[] {

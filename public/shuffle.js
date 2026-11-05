@@ -466,7 +466,7 @@ function beginDrag(event, game) {
   // Stage 8C fix: a menu click must not initiate a battlefield drag.
   if (event.target.closest?.(".card-tools")) return
   // Land stacks are fixed UI objects; their copy is selected by clicking.
-  if (event.target.closest?.(".stage7-land-zone")) return
+  if (event.target.closest?.(".compact-special-lanes, .stage7-land-zone")) return
   if (event.button !== 0) return
   const palette = event.target.closest("[data-counter-palette]")
   if (palette) {
@@ -792,6 +792,17 @@ async function loadDeck(actorId, deckId) {
   setConnectionState(response.ok ? "Loading the deck…" : "The deck could not be requested")
 }
 
+
+// Scryfall art crops are not guaranteed for every printing/face.
+// Fall back to the original complete card image if an artwork request fails.
+document.addEventListener('error', (event) => {
+  const image = event.target
+  if (!(image instanceof HTMLImageElement)) return
+  const fallback = image.dataset.artFallback
+  if (!fallback || image.src === fallback) return
+  image.removeAttribute('data-art-fallback')
+  image.src = fallback
+}, true)
 
 function wireCardPreview() {
   const preview = document.getElementById("card-hover-preview")
@@ -1464,7 +1475,7 @@ function wireLandStackTap(actorId) {
   menu.className = 'stage7-land-menu'
   menu.hidden = true
   menu.innerHTML = `
-    <strong class="stage7-land-menu-title">Land actions</strong>
+    <strong class="stage7-land-menu-title">Permanent actions</strong>
     <label>Copy <select class="stage7-land-select"></select></label>
     <button type="button" data-land-choice="tap">Tap / Untap</button>
     <button type="button" data-land-choice="hand">Move to hand</button>
@@ -1504,7 +1515,7 @@ function wireLandStackTap(actorId) {
       return new Option(`Copy ${i + 1} (${state})`, copy.dataset.instanceId)
     }))
     selected.value = card.dataset.instanceId
-    menu.querySelector('.stage7-land-menu-title').textContent = card.dataset.previewName ?? 'Land actions'
+    menu.querySelector('.stage7-land-menu-title').textContent = card.dataset.previewName ?? 'Permanent actions'
     menu.hidden = false
     menuOpen = true
     const rect = menu.getBoundingClientRect()
@@ -1534,7 +1545,7 @@ function wireLandStackTap(actorId) {
 
 // Reject drops behind the floating land lane, just like Stage 3 does for piles.
 function cardOverlapsLandZone(card) {
-  const zone = card.closest('.player-section')?.querySelector('.stage7-land-zone')
+  const zone = card.closest('.player-section')?.querySelector('.compact-special-lanes, .stage7-land-zone')
   if (!zone) return false
   const a = card.getBoundingClientRect()
   const b = zone.getBoundingClientRect()

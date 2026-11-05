@@ -15,6 +15,15 @@ export type Card = {
   name: string
   scryfallId: string
   imageUrl: string
+  /** Scryfall art_crop shows only the illustration on the compact tabletop. */
+  artCropUrl?: string
+  /** Printed stats can contain '*' or formulas, not only integers. */
+  printedPower?: string
+  printedToughness?: string
+  typeLine?: string
+  isCreature?: boolean
+  /** A standalone noncreature, non-Aura, non-Equipment artifact/enchantment. */
+  isUtilityPermanent?: boolean
   tapped: boolean
   isManaSource: boolean
   /** Visible face is a land. Optional for saved decks created before Stage 7. */

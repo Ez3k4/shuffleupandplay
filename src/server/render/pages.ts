@@ -336,51 +336,36 @@ export function gamePage(options: {
   data-components="${jsonAttribute(declarations)}"
 >
 
-  <div class="tabletop-tools">
-
-    <details class="topbar-live-meta panel tabletop-toggle">
-      <summary>Game information</summary>
-
-      <div class="live-meta-content">
-        <div class="table-title-row">
-          <h1>${escapeHtml(room.name)}</h1>
-          <div class="table-title-actions">
-            <button
-              type="button"
-              class="share-link-button"
-              data-copy-text="${attribute(options.shareUrl)}"
-            >Copy invite link</button>
-
-            <button
-              type="button"
-              class="help-button"
-              data-open-help
-              aria-haspopup="dialog"
-            >Help</button>
+  <details class="compact-tabletop-toolbar" data-compact-toolbar>
+    <summary title="Show or hide table settings" aria-label="Show or hide table settings">
+      <span aria-hidden="true">⚙</span> <span>Table tools</span>
+    </summary>
+    <div class="compact-toolbar-content">
+      <section class="topbar-live-meta panel compact-toolbar-section" aria-label="Game information">
+        <div class="live-meta-content">
+          <div class="table-title-row">
+            <h1>${escapeHtml(room.name)}</h1>
+            <div class="table-title-actions">
+              <button type="button" class="share-link-button" data-copy-text="${attribute(options.shareUrl)}">Copy invite link</button>
+              <button type="button" class="help-button" data-open-help aria-haspopup="dialog">Help</button>
+            </div>
+          </div>
+          <div class="status-grid">
+            <p class="table-code">Table code <strong>${escapeHtml(options.roomCode)}</strong></p>
+            <p>You are seat ${options.seat}</p>
+            ${connectionStatus()}
           </div>
         </div>
-
-        <div class="status-grid">
-          <p class="table-code">
-            Table code <strong>${escapeHtml(options.roomCode)}</strong>
-          </p>
-          <p>You are seat ${options.seat}</p>
-          ${connectionStatus()}
-        </div>
-      </div>
-    </details>
-
-    <details class="panel tabletop-toggle">
-      <summary>Deck settings &amp; counters</summary>
-
-      ${componentSlot({
-        name: "playerControls",
-        key: options.seat,
-        context
-      })}
-    </details>
-
-  </div>
+      </section>
+      <section class="panel compact-toolbar-section" aria-label="Deck settings and counters">
+        ${componentSlot({
+          name: "playerControls",
+          key: options.seat,
+          context,
+        })}
+      </section>
+    </div>
+  </details>
 
   ${componentSlot({ name: "tableStatus", context })}
 

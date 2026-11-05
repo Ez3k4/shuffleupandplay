@@ -375,7 +375,7 @@ function renderBattlefield(options: {
   isCurrentPlayer: boolean
 }): string {
   const cards = options.player.battlefield
-    .filter((card) => !isLandCard(card))
+    .filter((card) => !isLandCard(card) && !isFixedUtilityCard(card, options.player.battlefield))
     .map((card) => renderBattlefieldCard({
       card,
       isCurrentPlayer: options.isCurrentPlayer,
@@ -387,15 +387,16 @@ function renderBattlefield(options: {
         : 0,
     }))
     .join("")
-  const lands = renderLandZone(options)
+  const fixedLanes = renderFixedLanes(options)
 
-  return `<div class="battlefield"><div class="battlefield-canvas" data-battlefield-player-id="${attribute(options.player.id)}">${cards}${lands}</div></div>`
+  return `<div class="battlefield"><div class="battlefield-canvas" data-battlefield-player-id="${attribute(options.player.id)}">${cards}${fixedLanes}</div></div>`
 }
 
 function renderBattlefieldCard(options: {
   card: PublicBattlefieldCard
   isCurrentPlayer: boolean
   landStackIndex?: number
+  utilityStack?: boolean
   hasAttachments?: boolean
   attachmentIndex?: number
 }): string {
@@ -432,10 +433,32 @@ function renderBattlefieldCard(options: {
     ? `--stage7-stack-index:${options.landStackIndex}`
     : `left:calc(var(--tabletop-travel-x) * ${card.x / 1200});top:calc(var(--tabletop-travel-y) * ${(options.isCurrentPlayer ? card.y : 700 - card.y) / 700})`
   const landClass = isLandStackCard ? " stage7-land-card" : ""
-  return `<div class="battlefield-card${card.tapped ? " tapped" : ""}${landClass}${card.attachedTo ? " stage8-attached" : ""}${options.hasAttachments ? " stage8-attachment-host" : ""}" data-instance-id="${attribute(card.instanceId)}" data-stage8b-attachable="${card.isAttachment === true ? "true" : "false"}" ${previewAttributes(card)} style="${position};--stage8c-attach-x:${23 + Math.min(options.attachmentIndex ?? 0, 8) * 26}px;--stage8c-attach-y:${31 + Math.min(options.attachmentIndex ?? 0, 8) * 16}px">
-  <img loading="lazy" src="${attribute(card.imageUrl)}" alt="${attribute(card.name)}" />
+  const utilityClass = options.utilityStack ? " compact-utility-card" : ""
+  const compact = !isLandCard(card)
+  const statBadge = compact && card.isCreature === true &&
+    card.printedPower !== undefined && card.printedToughness !== undefined
+    ? `<span class="compact-card-pt">${escapeHtml(card.printedPower)}/${escapeHtml(card.printedToughness)}</span>`
+    : ""
+  const image = compact ? compactCardArtUrl(card) : card.imageUrl
+  const face = compact
+    ? `<img class="compact-art-image" loading="lazy" src="${attribute(image)}" data-art-fallback="${attribute(card.imageUrl)}" alt="${attribute(card.name)}" />
+      <span class="compact-card-name">${escapeHtml(card.name)}</span>${statBadge}`
+    : `<img loading="lazy" src="${attribute(card.imageUrl)}" alt="${attribute(card.name)}" />`
+  return `<div class="battlefield-card${card.tapped ? " tapped" : ""}${landClass}${utilityClass}${compact ? " compact-art-card" : ""}${statBadge ? " compact-has-pt" : ""}${card.attachedTo ? " stage8-attached" : ""}${options.hasAttachments ? " stage8-attachment-host" : ""}" data-instance-id="${attribute(card.instanceId)}" data-stage8b-attachable="${card.isAttachment === true ? "true" : "false"}" ${previewAttributes(card)} style="${position};--stage8c-attach-x:${23 + Math.min(options.attachmentIndex ?? 0, 8) * 26}px;--stage8c-attach-y:${31 + Math.min(options.attachmentIndex ?? 0, 8) * 16}px">
+  ${face}
   <div class="card-tools">${tools}</div>${counters}
 </div>`
+}
+
+// Calculate the artwork URL for older saved decks that predate artCropUrl.
+// Keep their original full-card URL as the hover preview and image fallback.
+function compactCardArtUrl(card: PublicBattlefieldCard): string {
+  if (card.artCropUrl) return card.artCropUrl
+  const id = card.scryfallId
+  if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id)) {
+    return `https://cards.scryfall.io/art_crop/front/${id[0]}/${id[1]}/${id}.jpg`
+  }
+  return card.imageUrl
 }
 
 // Land is a subtype-independent card type, NOT the same as "produces mana".
@@ -447,41 +470,70 @@ function isLandCard(card: PublicBattlefieldCard): boolean {
   return card.isLand === true
 }
 
-// Only the HTML layout is grouped. Every card keeps its instanceId, tap state,
-// counters and independent move actions in the shared player.battlefield array.
-function renderLandZone(options: {
+// Utility permanents are still normal cards in the battlefield array.
+// Cards hosting attachments stay on the main canvas to preserve attachment
+// offsets and drag-to-attach behavior. Missing card types stay on the canvas.
+function isFixedUtilityCard(
+  card: PublicBattlefieldCard,
+  battlefield: readonly PublicBattlefieldCard[],
+): boolean {
+  if (isLandCard(card) || card.isAttachment || card.attachedTo) return false
+  if (battlefield.some((candidate) => candidate.attachedTo === card.instanceId)) return false
+  if (card.isUtilityPermanent === true) return true
+  if (card.isUtilityPermanent === false) return false
+  const type = card.typeLine ?? ""
+  return /\b(?:Artifact|Enchantment)\b/i.test(type) &&
+    !/\b(?:Land|Creature|Aura|Equipment)\b/i.test(type)
+}
+
+// Both fixed lanes reuse the existing Stage 7 stack DOM, so tapping and the
+// individual-copy right-click menu continue to work without new game actions.
+// Only identical names are grouped; each copy keeps a distinct instanceId.
+function renderFixedLanes(options: {
   player: PublicPlayer
   isCurrentPlayer: boolean
 }): string {
+  const battlefield = options.player.battlefield
+  const lands = battlefield.filter(isLandCard)
+  const utilities = battlefield.filter((card) => isFixedUtilityCard(card, battlefield))
+  return `<div class="compact-special-lanes" aria-label="Fixed permanent areas">
+    ${renderFixedLane(lands, "Lands", "stage7-land-zone", options.isCurrentPlayer)}
+    ${renderFixedLane(utilities, "Artifacts / Enchantments", "compact-utility-zone", options.isCurrentPlayer, true)}
+  </div>`
+}
+
+function renderFixedLane(
+  cards: readonly PublicBattlefieldCard[],
+  title: string,
+  extraClass: string,
+  isCurrentPlayer: boolean,
+  utility = false,
+): string {
   const groups = new Map<string, PublicBattlefieldCard[]>()
-  for (const card of options.player.battlefield) {
-    if (!isLandCard(card)) continue
+  for (const card of cards) {
     const key = card.name.trim().toLocaleLowerCase("en")
     const group = groups.get(key) ?? []
     group.push(card)
     groups.set(key, group)
   }
-  if (!groups.size) return ""
 
-  const stacks = [...groups.values()].map((cards) => {
-    // Render tapped copies at the back so untapped copies are easy to select.
-    const sorted = [...cards].sort((a, b) => Number(b.tapped) - Number(a.tapped))
-    const faces = sorted
-      .map((card, index) => renderBattlefieldCard({
-        card,
-        isCurrentPlayer: options.isCurrentPlayer,
-        landStackIndex: Math.min(index, 3),
-      }))
-      .join("")
-    const tappedCount = cards.filter((card) => card.tapped).length
-    return `<div class="stage7-land-stack" title="${attribute(cards[0]?.name ?? "Land")}" aria-label="${attribute(cards[0]?.name ?? "Land")}, ${cards.length} copies, ${tappedCount} tapped">
+  const stacks = [...groups.values()].map((copies) => {
+    const sorted = [...copies].sort((a, b) => Number(b.tapped) - Number(a.tapped))
+    const faces = sorted.map((card, index) => renderBattlefieldCard({
+      card,
+      isCurrentPlayer,
+      landStackIndex: Math.min(index, 3),
+      utilityStack: utility,
+    })).join("")
+    const tappedCount = copies.filter((card) => card.tapped).length
+    return `<div class="stage7-land-stack" title="${attribute(copies[0]?.name ?? "Permanent")}" aria-label="${attribute(copies[0]?.name ?? "Permanent")}, ${copies.length} copies, ${tappedCount} tapped">
       ${faces}
-      <span class="stage7-land-count">${tappedCount ? `${tappedCount}/` : ""}${cards.length}</span>
+      <span class="stage7-land-count">${tappedCount ? `${tappedCount}/` : ""}${copies.length}</span>
     </div>`
   }).join("")
-  const total = [...groups.values()].reduce((sum, cards) => sum + cards.length, 0)
-  return `<div class="stage7-land-zone" aria-label="Land area">
-    <div class="stage7-land-title"><span>Lands</span><span>${total}</span></div>
+
+  return `<div class="stage7-land-zone ${extraClass}" aria-label="${attribute(title)}">
+    <div class="stage7-land-title"><span>${escapeHtml(title)}</span><span>${cards.length}</span></div>
     <div class="stage7-land-row">${stacks}</div>
   </div>`
 }
