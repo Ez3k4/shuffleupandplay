@@ -444,7 +444,7 @@ function renderBattlefieldCard(options: {
     ? `<img class="compact-art-image" loading="lazy" src="${attribute(image)}" data-art-fallback="${attribute(card.imageUrl)}" alt="${attribute(card.name)}" />
       <span class="compact-card-name">${escapeHtml(card.name)}</span>${statBadge}`
     : `<img loading="lazy" src="${attribute(card.imageUrl)}" alt="${attribute(card.name)}" />`
-  return `<div class="battlefield-card${card.tapped ? " tapped" : ""}${landClass}${utilityClass}${compact ? " compact-art-card" : ""}${statBadge ? " compact-has-pt" : ""}${card.attachedTo ? " stage8-attached" : ""}${options.hasAttachments ? " stage8-attachment-host" : ""}" data-instance-id="${attribute(card.instanceId)}" data-stage8b-attachable="${card.isAttachment === true ? "true" : "false"}" ${previewAttributes(card)} style="${position};--stage8c-attach-x:${23 + Math.min(options.attachmentIndex ?? 0, 8) * 26}px;--stage8c-attach-y:${31 + Math.min(options.attachmentIndex ?? 0, 8) * 16}px">
+  return `<div class="battlefield-card${card.tapped ? " tapped" : ""}${landClass}${utilityClass}${compact ? " compact-art-card" : ""}${statBadge ? " compact-has-pt" : ""}${card.attachedTo ? " stage8-attached" : ""}${options.hasAttachments ? " stage8-attachment-host" : ""}" data-instance-id="${attribute(card.instanceId)}" data-stage8b-attachable="${(card.isAttachment === true || /\b(?:Aura|Equipment)\b/i.test(card.typeLine ?? "")) ? "true" : "false"}" ${previewAttributes(card)} style="${position};--stage8c-attach-x:${23 + Math.min(options.attachmentIndex ?? 0, 8) * 26}px;--stage8c-attach-y:${31 + Math.min(options.attachmentIndex ?? 0, 8) * 16}px">
   ${face}
   <div class="card-tools">${tools}</div>${counters}
 </div>`
@@ -470,20 +470,25 @@ function isLandCard(card: PublicBattlefieldCard): boolean {
   return card.isLand === true
 }
 
-// Utility permanents are still normal cards in the battlefield array.
-// Cards hosting attachments stay on the main canvas to preserve attachment
-// offsets and drag-to-attach behavior. Missing card types stay on the canvas.
+// ===== Renderer: utility lane vs. draggable battlefield =====
+// This is PRESENTATION only: every card remains in player.battlefield.
+// Cards hosting or carrying attachments stay on the main canvas to preserve
+// attachment offsets and dragging. Missing/ambiguous type data stays on the
+// main canvas unless an existing saved isUtilityPermanent flag says otherwise.
+// Note: old saved cards without subtype metadata may require a fresh deck load.
 function isFixedUtilityCard(
   card: PublicBattlefieldCard,
   battlefield: readonly PublicBattlefieldCard[],
 ): boolean {
-  if (isLandCard(card) || card.isAttachment || card.attachedTo) return false
+  if (isLandCard(card) || card.attachedTo) return false
   if (battlefield.some((candidate) => candidate.attachedTo === card.instanceId)) return false
-  if (card.isUtilityPermanent === true) return true
-  if (card.isUtilityPermanent === false) return false
   const type = card.typeLine ?? ""
-  return /\b(?:Artifact|Enchantment)\b/i.test(type) &&
-    !/\b(?:Land|Creature|Aura|Equipment)\b/i.test(type)
+  // Always exclude creatures, Equipment and Auras, even if an older imported
+  // card mistakenly persisted isUtilityPermanent=true in the database.
+  if (card.isAttachment === true || /\b(?:Land|Creature|Aura|Equipment)\b/i.test(type)) return false
+  if (card.isUtilityPermanent === false) return false
+  if (card.isUtilityPermanent === true) return true
+  return /\b(?:Artifact|Enchantment)\b/i.test(type)
 }
 
 // Both fixed lanes reuse the existing Stage 7 stack DOM, so tapping and the

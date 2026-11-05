@@ -6,6 +6,26 @@ import { renderComponent } from "/shared/server/render/components.ts"
 import { cardPoint, dragOffset, dragPosition, rotationFromTransform } from "./drag-math.js"
 import { morph } from "./morph.js"
 
+/*
+ * SHUFFLE.JS MAINTAINER GUIDE
+ * - start() / startMirror()          websocket refresh, session-owned mirror
+ * - wireActions() / sendAction()    dispatch game actions to the server
+ * - beginDrag() / finishDrag()      pointer dragging and logical coordinates
+ * - wireDeckForms()                 Archidekt search/import controls
+ * - wireCardPreview()               full printed card hover preview
+ * - wireLibraryFilter()             library search filtering
+ * - wireZoneInspector()             graveyard and exile inspector
+ * - wireCardTools()                 basic right-click menu
+ * - Stage 3 / Stage 7               library and land/utility-stack menus
+ * - Stage 8                         attaching Auras and Equipment
+ * - Stage 9 / Stage 10              mulligans (disabled server-side), Commander
+ * - Stage 11                        resize based on nonland battlefield count
+ *
+ * Card classification and location are SERVER-rendered in
+ * src/server/render/components.ts; importer metadata lives in
+ * src/archidekt/client.ts. Keep both aligned when adding new card types.
+ */
+
 const MIRROR_COMPONENTS = ["player", "playerControls", "librarySearch"]
 const SETTLE_INTERVAL_MILLISECONDS = 1000
 const FALLBACK_DELAY_MILLISECONDS = 6000
@@ -405,6 +425,9 @@ function showToast(message) {
 }
 
 
+// ===== Game actions: delegated buttons and network transport =====
+// Most buttons carry data-game-action. Queued actions may pass through the
+// optimistic mirror; server-only actions bypass it. The server is authoritative.
 function wireActions(game, actorId) {
   document.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-game-action]")
@@ -462,6 +485,9 @@ function newGestureKey() {
 
 let drag = null
 
+// ===== Pointer drag: card movement and board coordinates =====
+// Floating land/utility cards are excluded from this generic drag handler;
+// their individual controls are handled by wireLandStackTap() below.
 function beginDrag(event, game) {
   // Stage 8C fix: a menu click must not initiate a battlefield drag.
   if (event.target.closest?.(".card-tools")) return
@@ -659,6 +685,7 @@ function belongsToCurrentPlayer(card, game) {
   return card.closest(".player-section")?.dataset.currentPlayer === "true" && Boolean(game)
 }
 
+// ===== Deck browser: search and import from Archidekt =====
 function wireDeckForms(game, actorId) {
   document.addEventListener("submit", async (event) => {
     const searchForm = event.target.closest("[data-deck-search]")
@@ -804,6 +831,7 @@ document.addEventListener('error', (event) => {
   image.src = fallback
 }, true)
 
+// ===== Full-card hover preview (the battlefield face uses art_crop) =====
 function wireCardPreview() {
   const preview = document.getElementById("card-hover-preview")
   if (!preview) return
@@ -866,6 +894,7 @@ function wireCardPreview() {
 }
 
 
+// ===== Library search: filter existing buttons, do not change game state =====
 function wireLibraryFilter() {
   function filter(input) {
     const modal = input.closest('.library-search-modal-card')
@@ -911,6 +940,7 @@ function wireCopyButton() {
 
 
 
+// ===== Graveyard / exile inspector: client-side search of visible cards =====
 function wireZoneInspector(game) {
   const dialog = document.createElement("dialog")
   dialog.className = "zone-inspector"
@@ -1063,6 +1093,7 @@ function wireZoneInspector(game) {
 
 
 
+// ===== Battlefield right-click menu (ordinary draggable permanents) =====
 function wireCardTools(game) {
   let openCard = null
 
@@ -1493,7 +1524,8 @@ function tabletopLogicalPosition(card, position) {
   }
 }
 
-// ===== Stage 7: land-stack interaction without a new rules engine =====
+// ===== Stage 7 + compact utility lane: stacked permanent actions =====
+// Both lands and noncreature artifacts/enchantments use this same handler.
 // The individual copies retain their original instanceIds in game state.
 // Click a copy to tap/untap. Right-click a stack to select a particular
 // copy for the original move/tap/counter actions. Fixed stacks do not drag.

@@ -231,7 +231,11 @@ function expandCard(entry: Record<string, unknown>): Card[] {
 
   const typeLine = cardTypeLine({ card, oracleCard })
   const isLand = isLandType({ card, oracleCard, name })
-  const isAttachment = isAttachmentType({ card, oracleCard })
+  // Some Archidekt responses split main card types and subtypes into
+  // different fields (e.g. types: ["Artifact"], subTypes: ["Equipment"]).
+  // Treat the normalized printed type line as authoritative for this UI.
+  const isAttachment = /\b(?:Aura|Equipment)\b/i.test(typeLine) ||
+    isAttachmentType({ card, oracleCard })
   const isCreature = /\bCreature\b/i.test(typeLine)
   const isUtilityPermanent = !isLand && !isCreature && !isAttachment &&
     /\b(?:Artifact|Enchantment)\b/i.test(typeLine) &&
@@ -257,21 +261,39 @@ function expandCard(entry: Record<string, unknown>): Card[] {
   }))
 }
 
-// Normalize either a printed type line or an array of type names.
-// Unknown metadata leaves a permanent in the normal battlefield area.
+// ===== Import metadata: card types and attachment detection =====
+// Archidekt's `types` array may contain only super-/main types ("Artifact")
+// while the important "Equipment" or "Aura" subtype is a separate field.
+// Build one normalized printed type line and persist it on each Card.
 function cardTypeLine(options: {
   card: Record<string, unknown> | null
   oracleCard: Record<string, unknown> | null
 }): string {
-  const candidates = [
+  const main = firstTypeValue([
     options.oracleCard?.typeLine, options.oracleCard?.type_line,
     options.card?.typeLine, options.card?.type_line,
     options.oracleCard?.types, options.card?.types,
-  ]
+  ])
+  const subtype = firstTypeValue([
+    options.oracleCard?.subTypes, options.oracleCard?.subtypes,
+    options.oracleCard?.subType, options.oracleCard?.subtype,
+    options.oracleCard?.sub_types, options.oracleCard?.sub_type,
+    options.card?.subTypes, options.card?.subtypes,
+    options.card?.subType, options.card?.subtype,
+    options.card?.sub_types, options.card?.sub_type,
+  ])
+  // A full printed type line already includes its subtypes after a dash.
+  // Avoid duplicating them when Archidekt supplies both representations.
+  if (!subtype || /[—–]\s*\S/.test(main)) return main
+  return main ? `${main} — ${subtype}` : subtype
+}
+
+function firstTypeValue(candidates: unknown[]): string {
   for (const value of candidates) {
     if (typeof value === "string" && value.trim()) return value.trim()
     if (Array.isArray(value)) {
-      const parts = value.filter((part): part is string => typeof part === "string")
+      const parts = value.filter((part): part is string =>
+        typeof part === "string" && part.trim().length > 0)
       if (parts.length) return parts.join(" ")
     }
   }
@@ -318,7 +340,13 @@ function isAttachmentType(options: {
 }): boolean {
   const fields: unknown[] = [
     options.oracleCard?.typeLine, options.oracleCard?.type_line, options.oracleCard?.types,
+    options.oracleCard?.subTypes, options.oracleCard?.subtypes,
+    options.oracleCard?.subType, options.oracleCard?.subtype,
+    options.oracleCard?.sub_types, options.oracleCard?.sub_type,
     options.card?.typeLine, options.card?.type_line, options.card?.types,
+    options.card?.subTypes, options.card?.subtypes,
+    options.card?.subType, options.card?.subtype,
+    options.card?.sub_types, options.card?.sub_type,
   ]
   return fields.some((field) => {
     if (Array.isArray(field)) return field.some((value) => typeof value === "string" && /\b(?:Aura|Equipment)\b/i.test(value))
