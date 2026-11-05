@@ -4515,3 +4515,95 @@ main.layout[data-game] #players-area { position: relative; }
     max-width: min(32vw, calc(100% - var(--stage12-pile-reserve) - 1rem));
   }
 }
+
+
+/* ================================================================
+ * STAGE 13 — Land-sized utility cards, cross-board drops, wallpapers
+ * Utility cards and land stacks use the SAME inherited sizing variables.
+ * Wallpaper is decorative: a muted image is painted behind actual cards,
+ * and pointer events / game actions remain unchanged.
+ * ================================================================ */
+
+/* Stage 13A — Stage 12 moved utility cards outside .battlefield-canvas,
+ * where the responsive Stage 11 land sizing variables were originally set.
+ * Apply them here as well so both card categories are exactly equal-sized. */
+#players-area .player-section > .stage12-utility-area {
+  --stage7-land-width: var(--stage11-land-width);
+  --stage7-land-height: calc(var(--stage7-land-width) * 107 / 76);
+}
+
+/* Stage 13B — All battlefield surfaces accept drops from hand. The spell
+ * midpoint can accept drops even before an instant/sorcery is on the stack. */
+#players-area .player-section .battlefield.stage09-drop-over,
+#players-area > .stage12-shared-spell-stack.stage09-drop-over,
+#players-area.stage09-drop-over {
+  outline: 3px solid rgba(181, 213, 173, 0.65);
+  outline-offset: -3px;
+}
+#players-area .player-section .battlefield.stage09-drop-over {
+  background-color: rgba(75, 150, 105, 0.10);
+}
+
+/* Stage 13C — A random image per player's canvas. The color wash plus low
+ * opacity intentionally keeps permanent artwork and labels in focus.
+ * This pseudo-element never receives clicks/drags and does not alter layout. */
+#players-area .battlefield-canvas[data-stage13-wallpaper]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(7, 19, 20, 0.70), rgba(7, 19, 20, 0.70)),
+    var(--stage13-wallpaper, none);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.55;
+}
+
+/* ================================================================
+ * STAGE 14 — Neutral wallpaper opacity and lighter lobby panels
+ * No color wash on the playmat: the image alone is translucent, above
+ * a neutral charcoal surface. Cards and controls keep their layering.
+ * ================================================================ */
+
+/* Remove the original green felt gradients ONLY when an image is selected.
+ * Without wallpapers, Stage 13's usual felt remains the fallback. */
+#players-area .battlefield-canvas[data-stage13-wallpaper] {
+  background: #14161b;
+}
+
+#players-area .battlefield-canvas[data-stage13-wallpaper]::before {
+  background-image: var(--stage13-wallpaper, none);
+  background-color: transparent;
+  opacity: 0.42; /* Raise/lower to tune wallpaper visibility (0 = hidden). */
+}
+
+/* Stage 14 lobby wallpaper is selected on page load using the same manifest
+ * as the battlefields. No image => the original lobby style is unchanged. */
+body.stage14-lobby-background {
+  background: #121419;
+}
+body.stage14-lobby-background::before {
+  background-image: var(--stage14-lobby-wallpaper, none);
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  opacity: 0.40; /* Image opacity, not a colored overlay. */
+  z-index: 0;
+}
+body.stage14-lobby-background .layout:has(.lobby-panel) {
+  position: relative;
+  z-index: 1;
+}
+body.stage14-lobby-background .layout:has(.lobby-panel) > .panel {
+  background: rgba(13, 17, 25, 0.57);
+  border-color: rgba(212, 194, 160, 0.27);
+  backdrop-filter: blur(6px);
+}
+body.stage14-lobby-background .layout:has(.lobby-panel) .stacked-form {
+  background: rgba(11, 15, 22, 0.46);
+  border-color: rgba(212, 194, 160, 0.25);
+  backdrop-filter: blur(4px);
+}

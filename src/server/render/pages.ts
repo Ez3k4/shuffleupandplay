@@ -21,6 +21,9 @@ const ASSET_NAMES = [
   "shuffle.js",
   // Stage 12 DOM overlay is imported by shuffle.js; stamp it for cache safety.
   "stage12-spells.js",
+  // Stage 13 browser imports need fingerprints when the feature is updated.
+  "stage13-drop-target.js",
+  "stage13-wallpapers.js",
   "table-worker.js",
   "drag-math.js",
   "morph.js",

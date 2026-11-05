@@ -6,6 +6,8 @@ import { renderComponent } from "/shared/server/render/components.ts"
 import { cardPoint, dragOffset, dragPosition, rotationFromTransform } from "./drag-math.js"
 import { morph } from "./morph.js"
 import { mountStage12SpellOverlay } from "./stage12-spells.js"
+import { findStage13DropTarget } from "./stage13-drop-target.js"
+import { mountStage13Wallpapers, mountStage14LobbyWallpaper } from "./stage13-wallpapers.js"
 
 /*
  * SHUFFLE.JS MAINTAINER GUIDE
@@ -25,6 +27,7 @@ import { mountStage12SpellOverlay } from "./stage12-spells.js"
  * - Stage 09                        hand drag-to-play, quick-zone icons, life clicks
  * - Stage 11                        drag-only hand; spells remain pending until Resolve
  * - Stage 12                        central spell overlay; fixed-placed planeswalkers and utilities
+ * - Stage 13                        cross-board hand drop; subtle individual battlefield wallpapers
  *
  * Card classification and location are SERVER-rendered in
  * src/server/render/components.ts; importer metadata lives in
@@ -43,6 +46,9 @@ const DECK_COLORS = ["W", "U", "B", "R", "G", "C"]
 
 const game = document.querySelector("[data-game]")
 if (game) start(game)
+// Stage 14: initial create/join page (not the in-game tabletop).
+const lobbyPanel = document.querySelector('.lobby-panel')
+if (lobbyPanel && !game) mountStage14LobbyWallpaper(lobbyPanel)
 
 let mirror = null
 
@@ -151,6 +157,7 @@ function start(game) {
   wireLibraryFilter()
   wireZoneInspector(game)
   mountStage12SpellOverlay(game)
+  mountStage13Wallpapers(game)
   wireCopyButton()
   wireTooltips()
   wireCardTools(game)
@@ -494,7 +501,7 @@ function newGestureKey() {
 
 let drag = null
 
-// ===== Stage 09A: drag cards directly from your hand to your battlefield =====
+// ===== Stage 13: drag cards from hand to either battlefield / spell midpoint =====
 // Hand cards deliberately have NO click-to-play action. Only a valid drop
 // submits playFromHand; the server/renderer continues to
 // route lands and noncreature artifacts/enchantments into their correct lanes.
@@ -510,14 +517,12 @@ function wireStage09HandDrag(game, actorId) {
     if (!held) return
     held.button.classList.remove("stage09-hand-dragging")
     held.ghost?.remove()
-    held.battlefield?.classList.remove("stage09-drop-over")
+    held.highlight?.classList.remove("stage09-drop-over")
     held = null
   }
 
   function targetAt(event) {
-    const hit = document.elementFromPoint(event.clientX, event.clientY)
-    const field = hit?.closest?.(".your-seat .battlefield")
-    return field && held?.seat?.contains(field) ? field : null
+    return findStage13DropTarget(game, event.clientX, event.clientY)
   }
 
   function updateGhost(ghost, event) {
@@ -571,8 +576,12 @@ function wireStage09HandDrag(game, actorId) {
     }
     event.preventDefault()
     updateGhost(held.ghost, event)
-    const field = targetAt(event)
-    held.battlefield?.classList.toggle("stage09-drop-over", Boolean(field))
+    const target = targetAt(event)
+    if (held.highlight !== target) {
+      held.highlight?.classList.remove("stage09-drop-over")
+      target?.classList.add("stage09-drop-over")
+      held.highlight = target
+    }
   })
 
   document.addEventListener("pointerup", (event) => {
@@ -586,7 +595,7 @@ function wireStage09HandDrag(game, actorId) {
     if (drop) {
       void sendAction(actorId, { type: "playFromHand", instanceId })
     } else {
-      showToast("Drop a hand card onto your battlefield to play it.")
+      showToast("Drop onto either battlefield or the shared spell area to play.")
     }
   })
 
