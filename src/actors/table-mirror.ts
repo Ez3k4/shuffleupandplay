@@ -134,6 +134,9 @@ function seatPlayer(player: PublicPlayer): Player {
     exile: player.exile,
     isSearchingDeck: player.isSearchingDeck,
     appliedMove: player.appliedMove,
+    ...(player.commander ? { commander: player.commander } : {}),
+    ...(player.commanderInstanceId ? { commanderInstanceId: player.commanderInstanceId } : {}),
+    ...(player.openingHand ? { openingHand: player.openingHand } : {}),
   }
 }
 
@@ -154,5 +157,8 @@ function publicSeat(options: { seat: Player; appliedMove: number }): PublicPlaye
     exile: seat.exile,
     isSearchingDeck: seat.isSearchingDeck,
     appliedMove: options.appliedMove,
+    ...(seat.commander ? { commander: seat.commander } : {}),
+    ...(seat.commanderInstanceId ? { commanderInstanceId: seat.commanderInstanceId } : {}),
+    ...(seat.openingHand ? { openingHand: seat.openingHand } : {}),
   }
 }

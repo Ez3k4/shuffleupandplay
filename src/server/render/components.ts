@@ -496,9 +496,10 @@ function renderFixedLanes(options: {
   const battlefield = options.player.battlefield
   const lands = battlefield.filter(isLandCard)
   const utilities = battlefield.filter((card) => isFixedUtilityCard(card, battlefield))
+  if (lands.length === 0 && utilities.length === 0) return ""
   return `<div class="compact-special-lanes" aria-label="Fixed permanent areas">
-    ${renderFixedLane(lands, "Lands", "stage7-land-zone", options.isCurrentPlayer)}
-    ${renderFixedLane(utilities, "Artifacts / Enchantments", "compact-utility-zone", options.isCurrentPlayer, true)}
+    ${lands.length ? renderFixedLane(lands, "Lands", "stage7-land-zone", options.isCurrentPlayer) : ""}
+    ${utilities.length ? renderFixedLane(utilities, "Artifacts / Enchantments", "compact-utility-zone", options.isCurrentPlayer, true) : ""}
   </div>`
 }
 
@@ -796,7 +797,8 @@ function renderLibrarySearch(context: ComponentRenderContext): string {
   <section class="modal-card library-search-modal-card" role="dialog" aria-modal="true">
     <h3>Search library</h3>
     <p>Choose a card to move it from your library to your hand.</p>
-    <input type="search" placeholder="Filter card names" data-library-filter />
+    <input type="search" placeholder="Filter card names" data-library-filter aria-label="Filter library cards by name" />
+    <p class="library-search-feedback" data-library-search-count role="status" aria-live="polite">${player.library.length} cards</p>
     <div class="library-search-list">${cards}</div>
     ${actionButton({ action: { type: "closeDeckSearch" }, label: "Close", className: "modal-cancel-button" })}
   </section>

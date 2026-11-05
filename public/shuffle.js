@@ -867,13 +867,31 @@ function wireCardPreview() {
 
 
 function wireLibraryFilter() {
-  document.addEventListener("input", (event) => {
-    if (!event.target.matches("[data-library-filter]")) return
-
-    const query = event.target.value.trim().toLowerCase()
-    for (const card of document.querySelectorAll("[data-library-card-name]")) {
-      card.hidden = !card.dataset.libraryCardName.includes(query)
+  function filter(input) {
+    const modal = input.closest('.library-search-modal-card')
+    if (!modal) return
+    const query = input.value.trim().toLowerCase()
+    const cards = [...modal.querySelectorAll('[data-library-card-name]')]
+    let matches = 0
+    for (const card of cards) {
+      const shown = (card.dataset.libraryCardName ?? '').includes(query)
+      card.hidden = !shown
+      if (shown) matches += 1
     }
+    const count = modal.querySelector('[data-library-search-count]')
+    if (count) count.textContent = query ? `${matches} of ${cards.length} matching cards` : `${cards.length} cards`
+  }
+
+  document.addEventListener('input', (event) => {
+    if (event.target.matches?.('[data-library-filter]')) filter(event.target)
+  })
+  document.addEventListener('search', (event) => {
+    if (event.target.matches?.('[data-library-filter]')) filter(event.target)
+  }, true)
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' || !event.target.matches?.('[data-library-filter]')) return
+    event.preventDefault()
+    filter(event.target)
   })
 }
 
@@ -965,7 +983,9 @@ function wireZoneInspector(game) {
     const label =
       selectedZone === "graveyard" ? "Graveyard" : "Exile"
 
-    title.textContent = `${label} (${cards.length})`
+    title.textContent = query
+      ? `${label} (${matching.length} of ${cards.length} matches)`
+      : `${label} (${cards.length})`
 
     if (matching.length === 0) {
       const message = document.createElement("p")
@@ -1002,7 +1022,14 @@ function wireZoneInspector(game) {
     search.focus()
   })
 
-  search.addEventListener("input", renderResults)
+  search.addEventListener('input', renderResults)
+  search.addEventListener('search', renderResults)
+  search.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      renderResults()
+    }
+  })
 
   closeButton.addEventListener("click", () => {
     dialog.close()

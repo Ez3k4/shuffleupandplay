@@ -87,6 +87,8 @@ export function seatFingerprints(room: Room): SeatFingerprint[] {
     const player = room.players.find((candidate) => candidate.seat === summary.seat)
     return {
       ...summary,
+      commanderInstanceId: player?.commanderInstanceId ?? null,
+      commanderInZone: Boolean(player?.commander),
       battlefield: (player?.battlefield ?? []).map((card) => ({
         instanceId: card.instanceId,
         attachedTo: card.attachedTo ?? null,

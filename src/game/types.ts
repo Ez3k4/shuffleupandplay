@@ -158,4 +158,7 @@ export type CardFingerprint = {
 
 export type SeatFingerprint = PlayerSummary & {
   battlefield: CardFingerprint[]
+  /** Commander state must invalidate the owning player's rendered component. */
+  commanderInstanceId: string | null
+  commanderInZone: boolean
 }

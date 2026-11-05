@@ -3615,13 +3615,13 @@ main.layout[data-game] .compact-toolbar-section .left-rail.panel {
 }
 
 /* ===== Compact tabletop 2: art-only, short and narrow permanents ===== */
-/* Keep Stage 11's tiering but render only ~55% of its former card width.
-   Cards now have a shorter art aspect ratio instead of full printed text. */
+/* Increase compact cards by 30% without losing the short art-only format.
+   Keep Stage 11's responsive tiering as the source of width. */
 #players-area .player-section.your-seat {
-  --tabletop-card-width: clamp(46px, calc(var(--stage11c-you-width, 176px) * 0.55), 98px);
+  --tabletop-card-width: clamp(60px, calc(var(--stage11c-you-width, 176px) * 0.715), 127px);
 }
 #players-area .player-section.opponent-seat {
-  --tabletop-card-width: clamp(46px, calc(var(--stage11c-opponent-width, 176px) * 0.55), 98px);
+  --tabletop-card-width: clamp(60px, calc(var(--stage11c-opponent-width, 176px) * 0.715), 127px);
 }
 #players-area .player-section {
   --tabletop-card-height: calc(var(--tabletop-card-width) * 1.22);
@@ -3638,22 +3638,20 @@ main.layout[data-game] .compact-toolbar-section .left-rail.panel {
   z-index: 3;
   left: 0;
   right: 0;
-  bottom: 0;
+  top: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  padding: 0.18rem 0.25rem;
-  font-size: clamp(7px, calc(var(--tabletop-card-width) * 0.1), 10px);
-  line-height: 1.1;
+  padding: 0.25rem 0.3rem;
+  font-size: clamp(8px, calc(var(--tabletop-card-width) * 0.105), 12px);
+  line-height: 1.12;
   color: #fff7e7;
   font-weight: 700;
   pointer-events: none;
   text-shadow: 0 1px 2px black;
-  background: linear-gradient(0deg, rgba(0,0,0,.92), rgba(0,0,0,.15));
+  background: linear-gradient(180deg, rgba(0,0,0,.93), rgba(0,0,0,.65) 66%, rgba(0,0,0,.05));
 }
-#players-area .battlefield-card.compact-has-pt > .compact-card-name {
-  right: 2.6em;
-}
+/* P/T stays bottom-right; the name has the complete top edge. */
 #players-area .battlefield-card.compact-art-card > .compact-card-pt {
   position: absolute;
   z-index: 4;
@@ -3678,8 +3676,8 @@ main.layout[data-game] .compact-toolbar-section .left-rail.panel {
   position: absolute;
   z-index: 25;
   left: 0.55rem;
-  width: min(760px, calc(100% - var(--tabletop-pile-reserve, 330px) - 1rem));
-  max-width: calc(100% - 0.75rem);
+  width: max-content;
+  max-width: max(0px, calc(100% - var(--tabletop-pile-reserve, 330px) - 1rem));
   min-width: 0;
   display: flex;
   align-items: stretch;
@@ -3700,22 +3698,31 @@ main.layout[data-game] .compact-toolbar-section .left-rail.panel {
   right: auto;
   bottom: auto;
   z-index: auto;
-  flex: 1 1 0;
-  width: 0;
+  flex: 0 1 auto;
+  width: max-content;
   min-width: 0;
-  max-width: none;
+  max-width: 100%;
   pointer-events: auto;
   overflow: hidden;
 }
+/* Override the older absolute land-zone offsets for BOTH player seats. */
+#players-area .your-seat .compact-special-lanes > .stage7-land-zone,
+#players-area .opponent-seat .compact-special-lanes > .stage7-land-zone {
+  top: auto;
+  bottom: auto;
+}
 #players-area .compact-special-lanes .stage7-land-row {
   min-height: var(--stage7-land-height);
+  width: max-content;
+  max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
 }
-#players-area .compact-special-lanes .stage7-land-row:empty::after {
-  content: 'Empty';
-  color: #b0c6b7;
-  font-size: 0.7rem;
+/* The utility stacks grow slightly with compact artwork instead of using the
+   much smaller original land card dimensions. The land lane is unchanged. */
+#players-area .compact-special-lanes > .compact-utility-zone {
+  --stage7-land-width: calc(var(--stage11-land-width) * 1.3);
+  --stage7-land-height: calc(var(--stage7-land-width) * 107 / 76);
 }
 /* Utility cards reuse the compact fixed-stack dimensions, but display art. */
 #players-area .compact-special-lanes .compact-utility-card.compact-art-card > .compact-card-name {
@@ -3728,10 +3735,19 @@ main.layout[data-game] .compact-toolbar-section .left-rail.panel {
   #players-area .compact-special-lanes {
     left: 0.3rem;
     gap: 0.25rem;
-    width: calc(100% - var(--tabletop-pile-reserve, 200px) - 0.5rem);
-    max-width: calc(100% - 0.5rem);
+    width: max-content;
+    max-width: max(0px, calc(100% - var(--tabletop-pile-reserve, 200px) - 0.5rem));
   }
   #players-area .opponent-seat .compact-special-lanes { top: 2.15rem; }
   #players-area .compact-special-lanes > .stage7-land-zone { padding: 0.2rem; }
   #players-area .compact-special-lanes .stage7-land-title { font-size: 0.58rem; }
+}
+
+/* ===== Compact refinement: search results visibility ===== */
+/* Author display:grid rules override the browser's default [hidden] style. */
+.library-search-list > .library-search-item[hidden] { display: none !important; }
+.library-search-feedback {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
