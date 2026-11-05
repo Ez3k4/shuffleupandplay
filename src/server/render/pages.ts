@@ -348,11 +348,12 @@ export function gamePage(options: {
   data-components="${jsonAttribute(declarations)}"
 >
 
-  <details class="compact-tabletop-toolbar" data-compact-toolbar>
-    <summary title="Show or hide table settings" aria-label="Show or hide table settings">
-      <span aria-hidden="true">⚙</span> <span>Table tools</span>
-    </summary>
-    <div class="compact-toolbar-content">
+  <div class="compact-tabletop-toolbar" data-compact-toolbar-shell>
+    <details class="compact-toolbar-details" data-compact-toolbar>
+      <summary title="Show or hide table settings" aria-label="Show or hide table settings">
+        <span aria-hidden="true">⚙</span> <span>Table tools</span>
+      </summary>
+      <div class="compact-toolbar-content">
       <section class="topbar-live-meta panel compact-toolbar-section" aria-label="Game information">
         <div class="live-meta-content">
           <div class="table-title-row">
@@ -376,15 +377,16 @@ export function gamePage(options: {
           context,
         })}
       </section>
-    </div>
-  </details>
+      </div>
+    </details>
+    ${componentSlot({ name: "opponentRoster", context })}
+  </div>
 
   ${componentSlot({ name: "tableStatus", context })}
 
   <div class="board-layout">
     <section class="main-table panel">
       <div id="players-area" data-stage16-players>
-        ${componentSlot({ name: "opponentRoster", context })}
         ${opponentSeats.map((seat) => `<div class="stage16-opponent-panel" data-stage16-opponent-panel="${seat}" hidden>
           ${componentSlot({ name: "player", key: seat, context })}
         </div>`).join("")}

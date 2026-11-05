@@ -75,6 +75,26 @@ describe('Stage 16 — 2/3/4-player mode', () => {
     }
   })
 
+  test('opponent selector stays outside the battlefield and collapsed settings', () => {
+    const room = makeRoom(3, 3)
+    const root = document.createElement('div')
+    root.innerHTML = gamePage({ payload:context(room,1).payload, roomCode:'ABC123', seat:1, shareUrl:'https://example.org' })
+    document.body.append(root)
+    const game = root.querySelector('[data-game]')
+    const toolbar = game.querySelector('.compact-tabletop-toolbar')
+    const details = toolbar.querySelector('[data-compact-toolbar]')
+    expect(details.open).toBe(false)
+    expect(toolbar.querySelector('#component-opponentRoster')).not.toBeNull()
+    expect(details.contains(toolbar.querySelector('#component-opponentRoster'))).toBe(false)
+    expect(game.querySelector('#players-area #component-opponentRoster')).toBeNull()
+
+    const stop = mountStage16OpponentSelector(game)
+    toolbar.querySelector('[data-stage16-select-seat="3"]').click()
+    expect(game.querySelector('[data-stage16-opponent-panel="3"]').hidden).toBe(false)
+    expect(details.open).toBe(false)
+    stop(); root.remove()
+  })
+
   test('clicks switch the highlighted opponent without modifying game state', () => {
     const room = makeRoom()
     const root = document.createElement('div')

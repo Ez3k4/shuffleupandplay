@@ -2,7 +2,8 @@
 export function mountStage16OpponentSelector(game) {
   const area = game?.querySelector('#players-area')
   if (!area) return () => {}
-  const roster = area.querySelector('#component-opponentRoster')
+  // The selector is outside #players-area so the toolbar remains stable across player updates.
+  const roster = game.querySelector('#component-opponentRoster')
   if (!roster) return () => {}
   let selectedSeat = null
   let scheduled = false
