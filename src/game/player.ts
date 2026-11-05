@@ -57,9 +57,9 @@ export function applyPlayerAction(options: ApplyPlayerActionOptions): Player {
   const player = structuredClone(options.player)
   const randomness = options.randomness ?? defaultRandomness
 
-  // While choosing an opening hand, normal game actions are blocked.
-  if (player.openingHand && player.openingHand.phase !== "kept" &&
-      !["beginOpeningHand", "redrawOpeningHand", "keepOpeningHand", "finishOpeningHand"].includes(action.type)) {
+  // Mulligans are disabled. Keep normal actions available even for saved
+  // tables whose players still have an unfinished openingHand state.
+  if (["beginOpeningHand", "redrawOpeningHand", "keepOpeningHand", "finishOpeningHand"].includes(action.type)) {
     return player
   }
   switch (action.type) {

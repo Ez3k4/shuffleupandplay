@@ -79,9 +79,14 @@ function playerAt(options: { room: PublicRoom | null; seat: number }): PublicPla
 
 
 
+const MULLIGAN_DISABLED = true
+
 // Stage 9: this panel uses only the viewer's own hand; no private card data
 // is emitted into the opponent's DOM. It disappears after the hand is kept.
 function renderStage9Opening(player: PublicPlayer, isCurrentPlayer: boolean): string {
+  // Temporarily disable the mulligan UI for all players.
+  // Retain the implementation below so it can be re-enabled later.
+  if (MULLIGAN_DISABLED) return ""
   const state = player.openingHand
   if (!isCurrentPlayer) {
     if (!state || state.phase === "kept") return ""
