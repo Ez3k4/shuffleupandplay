@@ -19,6 +19,7 @@ import {
   seatFingerprints,
 } from "../game/room-snapshot.ts"
 import type { Card, Player, PlayerSummary, Room, RoomPayload } from "../game/types.ts"
+import type { DeckTokenCard } from "../archidekt/deck-token-cards.ts"
 
 const MAXIMUM_PLAYERS = 4
 
@@ -40,6 +41,8 @@ export type GameViewer = {
 export type DeckResult = {
   deckName: string
   cards: Card[]
+  tokenPresetIds?: string[]
+  deckTokens?: DeckTokenCard[]
 }
 
 type DeckEffectArguments = {
@@ -263,6 +266,8 @@ export class GameRoom extends Actor {
         life: STARTING_LIFE,
         deckName: result.deckName,
         deckStatus: "loaded",
+        deckTokenIds: result.tokenPresetIds ?? [],
+        deckTokens: result.deckTokens ?? [],
         deckRequestId: null,
         library: result.cards,
         hand: [],

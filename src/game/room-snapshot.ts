@@ -123,6 +123,7 @@ function publicPlayer(options: { player: Player; sessionId: string | null }): Pu
     life: player.life,
     deckName: player.deckName,
     deckStatus: player.deckStatus,
+    ...(visible ? { deckTokenIds: player.deckTokenIds ?? [], deckTokens: player.deckTokens ?? [] } : {}),
     battlefield: player.battlefield,
     pendingSpells: player.pendingSpells ?? [],
     ...(player.commander ? { commander: player.commander } : {}),

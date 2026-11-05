@@ -1,3 +1,4 @@
+import { parseTokenDefinition, type DeckTokenCard } from "../archidekt/deck-token-cards.ts"
 import { DECK_POSITIONS, ZONE_NAMES, type DeckPosition, type ZoneName } from "./types.ts"
 
 export type GameAction =
@@ -18,7 +19,7 @@ export type GameAction =
   | { type: "playFromHand"; instanceId: string }
   | { type: "resolveSpell"; instanceId: string }
   | { type: "toggleTap"; instanceId: string }
-  | { type: "createToken"; tokenId: string; sourceInstanceId?: string }
+  | { type: "createToken"; tokenId: string; sourceInstanceId?: string; tokenCard?: DeckTokenCard }
   | { type: "createTokenCopy"; instanceId: string }
   | { type: "adjustCreatureStat"; instanceId: string; stat: "power" | "toughness"; delta: number }
   | { type: "setAttachment"; instanceId: string; targetInstanceId: string | null }
@@ -115,7 +116,13 @@ const BUILDERS: Record<GameActionType, Builder> = {
     const tokenId = textIdentifier(attributes.tokenId)
     const sourceInstanceId = textIdentifier(attributes.sourceInstanceId)
     if (!tokenId || (attributes.sourceInstanceId !== undefined && !sourceInstanceId)) return null
-    return { type: "createToken", tokenId, ...(sourceInstanceId ? { sourceInstanceId } : {}) }
+    const tokenCard = attributes.tokenCard === undefined ? undefined : parseTokenDefinition(attributes.tokenCard)
+    if (attributes.tokenCard !== undefined && (!tokenCard || tokenCard.id !== tokenId)) return null
+    return {
+      type: "createToken", tokenId,
+      ...(sourceInstanceId ? { sourceInstanceId } : {}),
+      ...(tokenCard ? { tokenCard } : {}),
+    }
   },
   createTokenCopy: (attributes) => {
     const instanceId = textIdentifier(attributes.instanceId)

@@ -10,6 +10,8 @@ export const DECK_STATUSES = ["idle", "loading", "loaded", "failed"] as const
 
 export type DeckStatus = (typeof DECK_STATUSES)[number]
 
+import type { DeckTokenCard } from "../archidekt/deck-token-cards.ts"
+
 export type Card = {
   instanceId: string
   name: string
@@ -68,6 +70,10 @@ export type Player = {
   life: number
   deckName: string | null
   deckStatus: DeckStatus
+  /** Stage 21: supported token presets suggested by the loaded deck. */
+  deckTokenIds?: string[]
+  /** Official printed tokens linked to this player’s imported deck. */
+  deckTokens?: DeckTokenCard[]
   deckRequestId: string | null
   library: Card[]
   hand: Card[]
@@ -116,6 +122,10 @@ export type PublicPlayer = {
   life: number
   deckName: string | null
   deckStatus: DeckStatus
+  /** Only projected to the player who loaded the deck. */
+  deckTokenIds?: string[]
+  /** Official printed tokens linked to this player’s imported deck. */
+  deckTokens?: DeckTokenCard[]
   library: PublicCard[]
   hand: PublicCard[]
   battlefield: PublicBattlefieldCard[]

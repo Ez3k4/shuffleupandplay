@@ -414,25 +414,34 @@ function createToken(options: {
   // Global token creation works with an empty battlefield. An explicitly
   // supplied source must still belong to this player.
   const source = player.battlefield.find((card) => card.instanceId === action.sourceInstanceId)
-  const preset = tokenPreset(action.tokenId)
-  if (!preset || (action.sourceInstanceId && !source)) return player
-  const artwork = tokenImageUrl(preset)
-  const creature = /\bCreature\b/.test(preset.typeLine)
+  const official = action.tokenCard ?? player.deckTokens?.find((token) => token.id === action.tokenId)
+  // Keep legacy preset IDs valid for existing tables and automated tests,
+  // but the UI only offers the real tokens belonging to this loaded deck.
+  const preset = official ? undefined : tokenPreset(action.tokenId)
+  if ((!official && !preset) || (action.sourceInstanceId && !source)) return player
+  const typeLine = official?.typeLine ?? preset?.typeLine ?? ""
+  const name = official?.name ?? preset?.name ?? "Token"
+  const artwork = preset ? tokenImageUrl(preset) : official?.imageUrl ?? ""
+  const creature = /\bCreature\b/i.test(typeLine)
+  const attachment = /\b(?:Aura|Equipment)\b/i.test(typeLine)
   const card: Card = {
     instanceId: randomness.identifier(),
-    name: preset.name,
-    scryfallId: `stage17-token-${preset.id}`,
+    name,
+    scryfallId: official?.id ?? `stage17-token-${preset?.id ?? ""}`,
     imageUrl: artwork,
-    artCropUrl: artwork,
-    typeLine: preset.typeLine,
-    ...(preset.power !== undefined ? { printedPower: preset.power } : {}),
-    ...(preset.toughness !== undefined ? { printedToughness: preset.toughness } : {}),
+    artCropUrl: official?.artCropUrl ?? artwork,
+    typeLine,
+    ...(official?.printedPower !== undefined ? { printedPower: official.printedPower } :
+      preset?.power !== undefined ? { printedPower: preset.power } : {}),
+    ...(official?.printedToughness !== undefined ? { printedToughness: official.printedToughness } :
+      preset?.toughness !== undefined ? { printedToughness: preset.toughness } : {}),
     isCreature: creature,
-    isUtilityPermanent: !creature,
+    isUtilityPermanent: !creature && !attachment && /\b(?:Artifact|Enchantment)\b/i.test(typeLine),
+    isAttachment: attachment,
     isToken: true,
     tapped: false,
     isLand: false,
-    isManaSource: preset.id === "treasure" || preset.id === "gold",
+    isManaSource: /^(?:Treasure|Gold)$/i.test(name),
   }
   return {
     ...player,

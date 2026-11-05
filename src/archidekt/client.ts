@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto"
 import { NonRetryableError } from "solid-objects"
 
 import type { Card } from "../game/types.ts"
+import { deckTokenPresetIds } from "./token-suggestions.ts"
+import type { DeckTokenCard } from "./deck-token-cards.ts"
 
 const BASE_URL = "https://archidekt.com"
 const TRUSTED_HOST = "archidekt.com"
@@ -40,6 +42,9 @@ export interface DeckSearchResult {
 export interface ArchidektDeck {
   name: string
   cards: Card[]
+  /** Supported token names inferred from this deck; not Archidekt’s full token inventory. */
+  tokenPresetIds?: string[]
+  deckTokens?: DeckTokenCard[]
 }
 
 export interface ArchidektClient {
@@ -97,9 +102,14 @@ async function deck(deckId: string): Promise<ArchidektDeck> {
   if (!/^\d+$/.test(deckId)) throw new ArchidektRequestError(`invalid deck identifier ${deckId}`)
 
   const payload = await getJson(`${BASE_URL}/api/decks/${deckId}/`)
+  const cards = shuffle(deckCards(payload))
+  // Token search now happens on demand and works with any deck.
+  // Avoid extra Scryfall requests during Archidekt deck import.
   return {
     name: stringValue(payload.name, "Deck"),
-    cards: shuffle(deckCards(payload)),
+    cards,
+    tokenPresetIds: deckTokenPresetIds(payload),
+    deckTokens: [],
   }
 }
 
@@ -178,6 +188,7 @@ function colorBands(colors: unknown): DeckColorBand[] {
     return [{ color, weight: Math.max(Math.round(weight), 1) }]
   })
 }
+
 
 function deckCards(payload: Record<string, unknown>): Card[] {
   const inclusion = categoryInclusion(payload.categories)

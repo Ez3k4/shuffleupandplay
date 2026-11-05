@@ -5085,3 +5085,98 @@ main.layout[data-game] #players-area[data-stage16-players] {
 #players-area .battlefield-card.compact-art-card > .compact-card-pt.stage17-stats {
   z-index: 48;
 }
+
+/* ===== Stage 21: mirrored opponent identity, stable hand fan ===== */
+/* The opponent's name and life sit immediately ABOVE the center divider,
+ * mirroring the local player's name/life immediately below it. Their land
+ * area remains at the opposite edge of the upper battlefield. */
+#players-area[data-stage16-players] .stage16-opponent-panel:not([hidden]) .opponent-seat .zone-summary {
+  position: absolute;
+  top: auto;
+  bottom: 0.35rem;
+  left: 0.65rem;
+  right: auto;
+  width: max-content;
+  max-width: 52%;
+  min-width: 0;
+  height: auto;
+  display: inline-flex;
+  gap: 0.45rem;
+  align-items: center;
+  pointer-events: none;
+  z-index: 46;
+  padding: 0.2rem 0.4rem;
+  background: rgba(12, 19, 24, 0.64);
+  border-radius: 5px;
+}
+#players-area[data-stage16-players] .stage16-opponent-panel:not([hidden]) .opponent-seat .zone-summary-player,
+#players-area[data-stage16-players] .stage16-opponent-panel:not([hidden]) .opponent-seat .zone-summary-life {
+  display: inline-flex;
+  position: static;
+  inset: auto;
+  transform: none;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  white-space: nowrap;
+}
+#players-area[data-stage16-players] .stage16-opponent-panel:not([hidden]) .opponent-seat .zone-summary-info { display: none; }
+
+/* Native :hover moves the card outside the cursor and causes rapid
+ * hover/unhover oscillation. JavaScript now selects the card under the
+ * pointer's UNTRANSFORMED hand strip; the selected card does not chase
+ * its own hover target. Pointer-driven reveal is intentionally CSS-class based. */
+#players-area .your-seat .player-zones .hand-strip { position: relative; }
+#players-area .your-seat .player-zones .hand-card {
+  --stage21-idle-angle: var(--stage08-hand-angle, 0deg);
+  transform: translateY(var(--stage08-hand-drop, 0px)) rotate(var(--stage21-idle-angle)) !important;
+  transition: transform 190ms cubic-bezier(.2,.72,.18,1), box-shadow 190ms ease;
+}
+#players-area .your-seat .player-zones .hand-strip.stage21-hovering .hand-card {
+  transform: translateY(calc(var(--stage08-hand-drop, 0px) - var(--stage10-fan-lift, 30px))) rotate(var(--stage21-idle-angle)) !important;
+}
+#players-area .your-seat .player-zones .hand-strip .hand-card.stage21-raised,
+#players-area .your-seat .player-zones .hand-strip.stage21-hovering .hand-card.stage21-raised {
+  transform: translateY(calc(var(--hand-rise) - var(--stage10-fan-lift, 30px))) rotate(0deg) scale(1.04) !important;
+  z-index: 150 !important;
+  box-shadow: 0 13px 30px rgba(0,0,0,.7);
+}
+@media (max-width: 760px) {
+  #players-area .your-seat .player-zones .hand-card { --stage21-idle-angle: calc(var(--stage08-hand-angle, 0deg) * .45); }
+}
+@media (max-width: 550px) {
+  #players-area .your-seat .player-zones .hand-card { --stage21-idle-angle: 0deg; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #players-area .your-seat .player-zones .hand-card { transition: none; }
+}
+/* Suggested token types are highlighted, but every preset remains available. */
+.stage17-token-picker .stage21-token-suggested { border-color: rgba(211,177,104,.85); }
+.stage17-token-picker .stage21-token-suggested small { color: #d2b77f; }
+.stage17-token-picker .stage21-deck-token-header { margin: .45rem 0 .4rem; font-size: .8rem; opacity: .85; }
+/* Keyboard navigation keeps the same reveal even without pointer movement. */
+#players-area .your-seat .player-zones .hand-strip .hand-card:focus-visible {
+  transform: translateY(calc(var(--hand-rise) - var(--stage10-fan-lift, 30px))) rotate(0deg) scale(1.04) !important;
+  z-index: 150 !important;
+}
+
+/* ===== Stage 22: image-backed tokens from the imported deck ===== */
+.stage22-deck-token-picker { width: min(700px, calc(100vw - 20px)); }
+.stage22-deck-token-picker .stage17-token-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.stage22-deck-token-option { display: flex; align-items: center; gap: .65rem; min-height: 96px; }
+.stage22-deck-token-image { width: 58px; height: 80px; object-fit: contain; flex: 0 0 58px; border-radius: 4px; }
+.stage22-deck-token-text { min-width: 0; overflow-wrap: anywhere; }
+.stage22-deck-token-picker .stage21-deck-token-header { margin: .3rem 0 .6rem; }
+@media (max-width: 560px) { .stage22-deck-token-picker .stage17-token-options { grid-template-columns: 1fr; } }
+
+
+/* ===== Stage 23: searchable, paginated Scryfall token catalog ===== */
+.stage23-token-catalog { max-height: min(88vh, 790px); }
+.stage23-token-catalog .stage17-token-options { max-height: min(56vh, 550px); }
+.stage23-token-catalog .stage23-more {
+  display: block; width: 100%; padding: .55rem; margin-top: .65rem;
+  border: 1px solid #947a50; border-radius: 6px;
+  background: #314047; color: #f6ead4; cursor: pointer;
+}
+.stage23-token-catalog .stage23-more[hidden] { display: none; }

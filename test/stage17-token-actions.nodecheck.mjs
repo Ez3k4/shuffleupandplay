@@ -103,7 +103,8 @@ test('original four zone shortcuts remain, and both card-menu variants support t
   assert.match(css,/stage17-token-picker/)
   assert.match(css,/stage17-stat-adjust/)
 })
-test('browser token choices match server allowlist',()=>{
-  const choices=[...shuffle.slice(shuffle.indexOf('const STAGE17_TOKENS = ['),shuffle.indexOf('function wireStage17TokenPicker')).matchAll(/\['([\w-]+)',\s*'[^']+',\s*'[^']+'\]/g)].map(a=>a[1])
-  assert.deepEqual(choices,TOKEN_PRESETS.map(p=>p.id))
+test('legacy server token presets remain valid, while new picker searches a global catalog',()=>{
+  assert.ok(TOKEN_PRESETS.length > 0)
+  assert.match(shuffle,/\/api\/tokens\/search/)
+  assert.doesNotMatch(shuffle,/const STAGE17_TOKENS = \[/)
 })

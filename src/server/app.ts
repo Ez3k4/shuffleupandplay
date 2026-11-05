@@ -14,6 +14,7 @@ import {
 
 import { GameRoom, type GameViewer } from "../actors/game-room.ts"
 import { extractDeckId } from "../archidekt/deck-id.ts"
+import { lookupPrintedToken, searchPrintedTokens } from "../archidekt/deck-token-cards.ts"
 import { generateRoomCode, normalizeRoomCode } from "../game/room-code.ts"
 import type { RoomPayload } from "../game/types.ts"
 import { isOperator, type ShuffleApplication } from "../runtime.ts"
@@ -138,6 +139,7 @@ export function createShuffleServer(options: ShuffleServerOptions): ShuffleServe
     joinTable: createRateLimiter({ limit: 20, windowMilliseconds: 60_000 }),
     loadDeck: createRateLimiter({ limit: 20, windowMilliseconds: 60_000 }),
     searchDecks: createRateLimiter({ limit: 30, windowMilliseconds: 60_000 }),
+    searchTokens: createRateLimiter({ limit: 35, windowMilliseconds: 60_000 }),
     syncMoves: createRateLimiter({ limit: 600, windowMilliseconds: 60_000 }),
   }
   const requestSessions = new WeakMap<IncomingMessage, RequestSession>()
@@ -311,6 +313,10 @@ async function route(options: {
     if (!allows({ context, limiter: limits.searchDecks })) return sendTooManyRequests(context)
     return searchDecks({ context, application })
   }
+  if (method === "GET" && path === "/api/tokens/search") {
+    if (!allows({ context, limiter: limits.searchTokens })) return sendTooManyRequests(context)
+    return searchTokenCatalog(context)
+  }
   if (method === "POST" && path === "/api/components/refresh") {
     return refreshComponents({ context, runtime })
   }
@@ -353,6 +359,7 @@ type RequestLimits = {
   joinTable: RateLimiter
   loadDeck: RateLimiter
   searchDecks: RateLimiter
+  searchTokens: RateLimiter
   syncMoves: RateLimiter
 }
 
@@ -682,6 +689,20 @@ async function applyAction(options: {
   const body = await readBody(context.request)
   const action = asJsonObject(isRecord(body.action) ? body.action : body)
 
+  // Never accept token artwork/properties from the browser. Scryfall provides
+  // validated metadata and the game actor persists it with the created token.
+  if (action.type === "createToken") {
+    const id = typeof action.tokenId === "string" ? action.tokenId : ""
+    delete action.tokenCard
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      let token
+      try { token = await lookupPrintedToken(id) }
+      catch { return sendJson({ context, status: 503, body: { error: "Scryfall is temporarily unavailable. Please retry." } }) }
+      if (!token) return sendJson({ context, status: 400, body: { error: "That Scryfall card is not a token." } })
+      action.tokenCard = asJsonObject(token as unknown as Record<string, unknown>)
+    }
+  }
+
   const callContext = {
     authorizationContext: viewerFor(options),
     ...idempotency(context),
@@ -734,6 +755,22 @@ async function searchDecks(options: {
     sendJson({ context, status: 200, body: { decks } })
   } catch {
     sendJson({ context, status: 502, body: { error: "Archidekt is unavailable" } })
+  }
+}
+
+// Same-origin proxy keeps the browser CSP unchanged and protects Scryfall with
+// a per-session request limit plus short-lived server-side caching.
+async function searchTokenCatalog(context: RequestContext): Promise<void> {
+  const q = context.url.searchParams.get("q") ?? ""
+  const rawPage = Number(context.url.searchParams.get("page") ?? "1")
+  if (q.length > 64 || !Number.isSafeInteger(rawPage) || rawPage < 1 || rawPage > 50) {
+    return sendJson({ context, status: 400, body: { error: "Invalid token search" } })
+  }
+  try {
+    const result = await searchPrintedTokens(q, rawPage)
+    sendJson({ context, status: 200, body: result })
+  } catch {
+    sendJson({ context, status: 503, body: { error: "Token catalog is temporarily unavailable. Try again later." } })
   }
 }
 

@@ -157,6 +157,7 @@ function start(game) {
 
   wireActions(game, actorId)
   wireStage09HandDrag(game, actorId)
+  wireStage21StableHandHover(game)
   wireStage09LifeControl(actorId)
   wireStage17StatControls(actorId)
   wireStage19CounterControls(actorId)
@@ -676,59 +677,192 @@ function wireStage19CounterControls(actorId) {
   }, true)
 }
 
+
+// ===== Stage 21: stable mouse selection for the overlapping hand =====
+// Native :hover flickered because lifting a card moves it away from the mouse.
+// Instead, pick the card from its static flex-layout positions (offsetLeft),
+// which never change when CSS transforms animate the visual cards.
+function wireStage21StableHandHover(game) {
+  let activeId = null
+  let activeStrip = null
+  let activeCard = null
+
+  function clear() {
+    activeStrip?.classList.remove('stage21-hovering')
+    activeCard?.classList.remove('stage21-raised')
+    activeStrip = null
+    activeCard = null
+    activeId = null
+  }
+
+  function select(strip, card) {
+    if (activeStrip === strip && activeCard === card) return
+    clear()
+    activeStrip = strip
+    activeCard = card
+    activeId = card.dataset.handPlayInstanceId
+    strip.classList.add('stage21-hovering')
+    card.classList.add('stage21-raised')
+  }
+
+  document.addEventListener('pointermove', (event) => {
+    if (event.pointerType !== 'mouse' || event.buttons !== 0) return
+    const strip = game.querySelector('.your-seat .hand-strip')
+    if (!strip) { clear(); return }
+    const rect = strip.getBoundingClientRect()
+    const x = event.clientX - rect.left
+    const inRestStrip = event.clientY >= rect.top - 6 &&
+      event.clientY <= rect.bottom + 6 && x >= -6 && x <= rect.width + 6
+
+    // Moving the pointer upward INTO the raised artwork keeps that card
+    // selected until the cursor leaves it; drag-to-play remains unchanged.
+    if (!inRestStrip) {
+      if (activeCard && activeCard.contains(event.target)) return
+      clear()
+      return
+    }
+
+    const cards = [...strip.querySelectorAll('.hand-card[data-hand-play-instance-id]')]
+    let candidate = null
+    for (const card of cards) {
+      // offsetLeft/offsetWidth describe layout boxes, not translated artwork.
+      if (x >= card.offsetLeft - 4 && x <= card.offsetLeft + card.offsetWidth + 4) {
+        candidate = card
+      }
+    }
+    if (candidate) select(strip, candidate)
+    else clear()
+  }, { passive: true })
+
+  document.addEventListener('pointercancel', clear)
+  window.addEventListener('blur', clear)
+  // Rerenders replace the hand, so a stale reference must never keep a
+  // removed card selected. Reapply the selection to the same instance if
+  // it is still in the new hand.
+  new MutationObserver(() => {
+    if (!activeId || activeCard?.isConnected) return
+    const strip = game.querySelector('.your-seat .hand-strip')
+    const card = [...(strip?.querySelectorAll('.hand-card') ?? [])]
+      .find((item) => item.dataset.handPlayInstanceId === activeId)
+    if (strip && card) select(strip, card)
+    else clear()
+  }).observe(game.querySelector('#players-area') ?? game, { childList: true, subtree: true })
+}
+
 // ===== Stage 17: one reusable token picker for every right-click menu =====
 // Keeping the choices in a single dialog avoids multiplying DOM nodes with
 // each additional card in large multiplayer games. IDs are server-validated.
-const STAGE17_TOKENS = [
-  ['treasure', 'Treasure', 'Artifact'], ['food', 'Food', 'Artifact'],
-  ['clue', 'Clue', 'Artifact'], ['blood', 'Blood', 'Artifact'],
-  ['map', 'Map', 'Artifact'], ['gold', 'Gold', 'Artifact'],
-  ['soldier', 'Soldier', '1/1'], ['goblin', 'Goblin', '1/1'],
-  ['elf-warrior', 'Elf Warrior', '1/1'], ['saproling', 'Saproling', '1/1'],
-  ['spirit', 'Spirit (Flying)', '1/1'], ['thopter', 'Thopter (Flying)', '1/1'],
-  ['zombie', 'Zombie', '2/2'], ['beast', 'Beast', '3/3'],
-]
-
 function wireStage17TokenPicker(actorId) {
   const dialog = document.createElement('dialog')
-  dialog.className = 'stage17-token-picker'
+  dialog.className = 'stage17-token-picker stage22-deck-token-picker stage23-token-catalog'
   dialog.innerHTML = `<form method="dialog" class="stage17-picker-head">
     <strong>Create a token</strong><button type="submit" aria-label="Close token picker">×</button>
-    </form><input type="search" class="stage17-token-filter" placeholder="Search token types…" aria-label="Search tokens">
-    <div class="stage17-token-options"></div><p class="stage17-token-empty" hidden>No matching tokens</p>`
+    </form><input type="search" maxlength="64" class="stage17-token-filter" placeholder="Search Scryfall tokens (Soldier, Treasure, Elephant…)" aria-label="Search token catalog">
+    <p class="stage21-deck-token-header" role="status" aria-live="polite"></p>
+    <div class="stage17-token-options"></div>
+    <p class="stage17-token-empty" hidden></p>
+    <button type="button" class="stage23-more" hidden>Load more tokens</button>`
   const choices = dialog.querySelector('.stage17-token-options')
-  for (const [id, label, detail] of STAGE17_TOKENS) {
+  const hint = dialog.querySelector('.stage21-deck-token-header')
+  const empty = dialog.querySelector('.stage17-token-empty')
+  const filter = dialog.querySelector('.stage17-token-filter')
+  const more = dialog.querySelector('.stage23-more')
+  document.body.append(dialog)
+
+  let pickerBusy = false
+  let searchTimer = null
+  let searchRevision = 0
+  let activeController = null
+  let currentPage = 0
+  let currentQuery = ''
+
+  function addToken(token) {
+    if (!token || typeof token.id !== 'string' || typeof token.name !== 'string') return
     const button = document.createElement('button')
     button.type = 'button'
-    button.dataset.stage17TokenId = id
-    button.dataset.stage17Search = `${label} ${detail}`.toLowerCase()
-    button.innerHTML = `<span class="stage17-token-name"></span><small></small>`
-    button.querySelector('.stage17-token-name').textContent = label
-    button.querySelector('small').textContent = detail
+    button.dataset.stage17TokenId = token.id
+    button.className = 'stage22-deck-token-option'
+    const image = document.createElement('img')
+    image.className = 'stage22-deck-token-image'
+    image.loading = 'lazy'
+    image.alt = ''
+    if (typeof token.imageUrl === 'string' && token.imageUrl.startsWith('https://cards.scryfall.io/')) {
+      image.src = token.imageUrl
+    }
+    const content = document.createElement('span')
+    content.className = 'stage22-deck-token-text'
+    const name = document.createElement('span')
+    name.className = 'stage17-token-name'
+    name.textContent = token.name
+    const description = document.createElement('small')
+    description.textContent = [token.typeLine,
+      token.printedPower !== undefined && token.printedToughness !== undefined
+        ? `${token.printedPower}/${token.printedToughness}` : ''].filter(Boolean).join(' · ')
+    content.append(name, description)
+    button.append(image, content)
     choices.append(button)
   }
-  document.body.append(dialog)
-  let pickerBusy = false
 
-  const filter = dialog.querySelector('.stage17-token-filter')
-  filter.addEventListener('input', () => {
-    const needle = filter.value.trim().toLowerCase()
-    let count = 0
-    for (const button of choices.children) {
-      const visible = button.dataset.stage17Search.includes(needle)
-      button.hidden = !visible
-      if (visible) count++
+  async function loadTokens(page = 1) {
+    const query = filter.value.trim()
+    if (page === 1) {
+      currentQuery = query
+      currentPage = 0
+      choices.replaceChildren()
     }
-    dialog.querySelector('.stage17-token-empty').hidden = count !== 0
+    activeController?.abort()
+    const controller = new AbortController()
+    activeController = controller
+    const revision = ++searchRevision
+    hint.textContent = query ? `Searching for “${query}”…` : 'Loading Scryfall token catalog…'
+    more.hidden = true
+    empty.hidden = true
+    try {
+      const params = new URLSearchParams({ q: query, page: String(page) })
+      const response = await fetch(`/api/tokens/search?${params}`, {
+        credentials: 'same-origin', signal: controller.signal,
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`)
+      if (revision !== searchRevision || !dialog.open || currentQuery !== query) return
+      const tokens = Array.isArray(result.tokens) ? result.tokens : []
+      for (const token of tokens) addToken(token)
+      currentPage = page
+      more.hidden = !result.hasMore
+      hint.textContent = `${choices.children.length} token cards shown${result.hasMore ? ' · more available' : ''}`
+      empty.hidden = choices.children.length > 0
+      empty.textContent = 'No matching tokens. Try a different name.'
+    } catch (error) {
+      if (controller.signal.aborted || revision !== searchRevision) return
+      hint.textContent = 'Scryfall token search unavailable'
+      empty.hidden = false
+      empty.textContent = error?.message || 'Please retry.'
+      more.hidden = true
+    }
+  }
+
+  filter.addEventListener('input', () => {
+    // Retire in-flight results immediately so an old query cannot flash.
+    activeController?.abort()
+    searchRevision++
+    clearTimeout(searchTimer)
+    searchTimer = setTimeout(() => void loadTokens(1), 350)
   })
-  dialog.addEventListener('close', () => { pickerBusy = false })
+  more.addEventListener('click', () => {
+    if (currentPage && !pickerBusy) void loadTokens(currentPage + 1)
+  })
+  dialog.addEventListener('close', () => {
+    pickerBusy = false
+    clearTimeout(searchTimer)
+    activeController?.abort()
+    searchRevision++
+  })
   dialog.addEventListener('click', (event) => {
     const button = event.target.closest?.('[data-stage17-token-id]')
     if (!button || pickerBusy) return
     pickerBusy = true
-    const action = {type: 'createToken', tokenId: button.dataset.stage17TokenId}
     dialog.close()
-    void sendAction(actorId, action)
+    void sendAction(actorId, {type: 'createToken', tokenId: button.dataset.stage17TokenId})
   })
   document.addEventListener('click', (event) => {
     const open = event.target.closest?.('[data-stage17-open-tokens]')
@@ -742,9 +876,10 @@ function wireStage17TokenPicker(actorId) {
       void sendAction(actorId, {type: 'createTokenCopy', instanceId: id})
       return
     }
+    // No Archidekt token data is needed. Any deck can search the complete catalog.
     filter.value = ''
-    filter.dispatchEvent(new Event('input'))
     if (!dialog.open) dialog.showModal()
+    void loadTokens(1)
     filter.focus()
   })
 }

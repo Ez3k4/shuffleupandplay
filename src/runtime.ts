@@ -93,6 +93,8 @@ export function createShuffleApplication(options: ShuffleRuntimeOptions): Shuffl
     return {
       deckName: deck.name,
       cards: deck.cards,
+      ...(deck.tokenPresetIds === undefined ? {} : { tokenPresetIds: deck.tokenPresetIds }),
+      ...(deck.deckTokens === undefined ? {} : { deckTokens: deck.deckTokens }),
     }
   })
 
