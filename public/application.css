@@ -5401,7 +5401,7 @@ main.layout[data-game] .stage24c-rules-panel a { color: #e9c790; }
  */
 #players-area .opponent-seat .player-zones .hand-zone {
   position: absolute;
-  top: 0.22rem;
+  top: -2rem;
   bottom: auto;
   left: calc((100% - var(--opponent-pile-width) - 1rem) / 2);
   width: max-content;
@@ -5742,4 +5742,38 @@ main.layout[data-game] .stage24c-rules-panel a { color: #e9c790; }
 }
 #players-area[data-stage16-players] .stage16-opponent-panel:not([hidden]) .opponent-seat .zone-summary {
   max-width: min(75%, 420px);
+}
+
+/* ===== Stage 26C: crop the top of inverted opponent cards, not the bottom =====
+ * Model the full Arena-style fan sitting partly ABOVE the top battlefield edge.
+ * The shell remains rotated 180deg as in Stage 26B; its original top 55%
+ * (name and illustration) therefore becomes the visible LOWER slice of an
+ * upside-down card. The other 45% sits outside the battlefield. Inverting
+ * this clip, instead of cropping the lower half, makes voluntary reveals
+ * meaningful even before hover. On hover the existing Stage 26B rule shows
+ * the entire card below the edge with its artwork upright for reading.
+ *
+ * Keep the pointer strip on-screen: the Stage 25 hover controller measures
+ * its untransformed rectangle, so moving .hand-zone to a negative top would
+ * otherwise make hover targets unreachable.
+ */
+#players-area .opponent-seat .player-zones .hand-zone {
+  --stage26c-offset: calc(var(--stage25-hand-width) * 0.68);
+  --stage25-hand-peek: clamp(56px, 9dvh, 78px);
+}
+#players-area .opponent-seat .player-zones .stage25-opponent-card {
+  transform: translateY(calc(var(--stage26-fan-drop) - var(--stage26c-offset)))
+    rotate(var(--stage26-fan-angle));
+  /* Rotation flips this original TOP area to the visible edge of the board. */
+  clip-path: inset(0 0 45% 0 round 7px);
+}
+#players-area .opponent-seat .stage25-opponent-hand-strip.stage25-hovering .stage25-opponent-card {
+  transform: translateY(calc(var(--stage26-fan-drop) - var(--stage26c-offset) + 4px))
+    rotate(var(--stage26-fan-angle));
+}
+/* The focused card still drops fully into the battlefield, revealing the
+ * existing upright artwork, exactly as in Stage 26B. */
+#players-area .opponent-seat .stage25-opponent-hand-strip .stage25-opponent-card.stage25-raised {
+  transform: translateY(var(--stage25-hand-lift)) rotate(180deg) scale(1.04);
+  clip-path: inset(0 0 0 0 round 7px);
 }
