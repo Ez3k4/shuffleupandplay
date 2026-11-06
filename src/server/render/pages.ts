@@ -380,6 +380,28 @@ export function gamePage(options: {
       </div>
     </details>
     ${componentSlot({ name: "opponentRoster", context })}
+    <details class="stage24c-rules" data-stage24c-rules>
+      <summary title="Quick Magic turn and rules guide" aria-label="Open quick Magic rules">📖 Rules</summary>
+      <section class="stage24c-rules-panel" aria-label="Quick Magic rules">
+        <strong>Turn order</strong>
+        <ol>
+          <li><b>Beginning:</b> Untap → upkeep → draw.</li>
+          <li><b>Main 1:</b> Play a land; cast spells.</li>
+          <li><b>Combat:</b> Attackers → blockers → damage.</li>
+          <li><b>Main 2:</b> Cast spells; land if unused.</li>
+          <li><b>Ending:</b> End step → cleanup (discard to 7; damage clears).</li>
+        </ol>
+        <strong>Remember</strong>
+        <ul>
+          <li>Normally one land play per turn. Tap lands for mana.</li>
+          <li>Instants may be cast when you have priority; most other spells during your main phase with an empty stack. Last spell on the stack resolves first.</li>
+          <li>New creatures usually cannot attack or use their own tap abilities until your next turn (unless they have haste).</li>
+          <li><b>Commander:</b> Usually 40 life; 21 combat damage from one commander makes a player lose.</li>
+        </ul>
+        <p>This tabletop is manual: agree on timing and resolve effects together.</p>
+        <a href="https://magic.wizards.com/en/how-to-play" target="_blank" rel="noopener noreferrer">Full beginner rules</a>
+      </section>
+    </details>
   </div>
 
   ${componentSlot({ name: "tableStatus", context })}

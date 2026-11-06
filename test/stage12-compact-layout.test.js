@@ -54,7 +54,7 @@ const walker = createCard('walker', 'Jace', 'Legendary Planeswalker — Jace')
 const spell = createCard('instant', 'Lightning Bolt', 'Instant')
 
 describe('Stage 12 battlefield placement', () => {
-  test('lands stay left; utilities move beside library; walkers go next to Commander', () => {
+  test('lands stay left; utilities move beside library; walkers use a separate lane', () => {
     const root = playerMarkup({ cards: [land, artifact, enchantment, equipment, aura, creature, walker] })
     const canvas = root.querySelector('.battlefield-canvas')
     expect(idList(canvas.querySelector('.compact-special-lanes'))).toEqual(['land'])

@@ -462,7 +462,11 @@ function renderBattlefieldCard(options: {
     : `left:calc(var(--tabletop-travel-x) * ${card.x / 1200});top:calc(var(--tabletop-travel-y) * ${(options.isCurrentPlayer ? card.y : 700 - card.y) / 700})`
   const landClass = isLandStackCard ? " stage7-land-card" : ""
   const utilityClass = options.utilityStack ? " compact-utility-card" : ""
-  const compact = !isLandCard(card)
+  // Stage 24B: show the complete printed card (including loyalty abilities)
+  // for Planeswalkers rather than the cropped battlefield artwork.
+  // All other permanent types keep their current compact/land rendering.
+  const isPlaneswalker = /\bPlaneswalker\b/i.test(card.typeLine ?? "")
+  const compact = !isLandCard(card) && !isPlaneswalker
   const creature = card.isCreature === true || /\bCreature\b/i.test(card.typeLine ?? "")
   const statBadge = compact && creature
     ? renderStage17Stats(card, isCurrentPlayer)
@@ -475,7 +479,7 @@ function renderBattlefieldCard(options: {
     ? `<img class="compact-art-image" loading="lazy" src="${attribute(image)}" data-art-fallback="${attribute(card.imageUrl)}" alt="${attribute(card.name)}" />
       <span class="compact-card-name" style="--compact-title-scale:${titleScale}">${escapeHtml(card.name)}</span>${statBadge}`
     : `<img loading="lazy" src="${attribute(card.imageUrl)}" alt="${attribute(card.name)}" />`
-  return `<div class="battlefield-card${card.tapped ? " tapped" : ""}${landClass}${utilityClass}${compact ? " compact-art-card" : ""}${statBadge ? " compact-has-pt" : ""}${card.isToken ? " stage17-token" : ""}${card.attachedTo ? " stage8-attached" : ""}${options.hasAttachments ? " stage8-attachment-host" : ""}" data-instance-id="${attribute(card.instanceId)}" title="${attribute(card.name)}" data-stage8b-attachable="${(card.isAttachment === true || /\b(?:Aura|Equipment)\b/i.test(card.typeLine ?? "")) ? "true" : "false"}" ${previewAttributes(card)} style="${position};--stage8c-attach-x:${Math.min(options.attachmentIndex ?? 0, 8) * 22}px;--stage8c-attach-y:42px">
+  return `<div class="battlefield-card${card.tapped ? " tapped" : ""}${landClass}${utilityClass}${compact ? " compact-art-card" : ""}${isPlaneswalker ? " stage24b-full-planeswalker" : ""}${statBadge ? " compact-has-pt" : ""}${card.isToken ? " stage17-token" : ""}${card.attachedTo ? " stage8-attached" : ""}${options.hasAttachments ? " stage8-attachment-host" : ""}" data-instance-id="${attribute(card.instanceId)}" title="${attribute(card.name)}" data-stage8b-attachable="${(card.isAttachment === true || /\b(?:Aura|Equipment)\b/i.test(card.typeLine ?? "")) ? "true" : "false"}" ${previewAttributes(card)} style="${position};--stage8c-attach-x:${Math.min(options.attachmentIndex ?? 0, 8) * 22}px;--stage8c-attach-y:42px">
   ${face}
   <div class="card-tools">${tools}</div>${counters}
 </div>`
