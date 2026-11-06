@@ -17,6 +17,7 @@ export interface RoomPayloadOptions {
 export function roomPayload(options: RoomPayloadOptions): RoomPayload {
   const { room, sessionId } = options
   const currentPlayer = playerForSession({ room, sessionId })
+  const authorizedToViewReveals = currentPlayer !== undefined
 
   return {
     space: {
@@ -27,7 +28,7 @@ export function roomPayload(options: RoomPayloadOptions): RoomPayload {
       version: room.version,
       createdAt: room.createdAt,
       updatedAt: room.updatedAt,
-      players: room.players.map((player) => publicPlayer({ player, sessionId })),
+      players: room.players.map((player) => publicPlayer({ player, sessionId, authorizedToViewReveals })),
     },
     currentPlayerId: currentPlayer?.id ?? null,
   }
@@ -91,6 +92,7 @@ export function seatFingerprints(room: Room): SeatFingerprint[] {
       commanderInstanceId: player?.commanderInstanceId ?? null,
       commanderInZone: Boolean(player?.commander),
       pendingSpellIds: (player?.pendingSpells ?? []).map((card) => card.instanceId),
+      revealedHandCardIds: [...(player?.revealedHandCardIds ?? [])].sort(),
       battlefield: (player?.battlefield ?? []).map((card) => ({
         instanceId: card.instanceId,
         attachedTo: card.attachedTo ?? null,
@@ -112,9 +114,10 @@ export function seatFingerprints(room: Room): SeatFingerprint[] {
   })
 }
 
-function publicPlayer(options: { player: Player; sessionId: string | null }): PublicPlayer {
-  const { player, sessionId } = options
+function publicPlayer(options: { player: Player; sessionId: string | null; authorizedToViewReveals: boolean }): PublicPlayer {
+  const { player, sessionId, authorizedToViewReveals } = options
   const visible = player.sessionId === sessionId && sessionId !== null
+  const revealed = new Set(player.revealedHandCardIds ?? [])
 
   return {
     id: player.id,
@@ -133,9 +136,24 @@ function publicPlayer(options: { player: Player; sessionId: string | null }): Pu
     isSearchingDeck: player.isSearchingDeck,
     ...(player.openingHand ? { openingHand: player.openingHand } : {}),
     appliedMove: player.appliedMove,
-    hand: visible ? player.hand : hiddenCards({ player, zone: "hand" }),
+    hand: visible
+      ? player.hand.map((card) => revealed.has(card.instanceId) ? { ...card, isRevealed: true } : card)
+      : hiddenHand({ player, revealed, authorizedToViewReveals }),
     library: visible ? player.library : hiddenCards({ player, zone: "library" }),
   }
+}
+
+function hiddenHand(options: {
+  player: Player
+  revealed: Set<string>
+  authorizedToViewReveals: boolean
+}): PublicCard[] {
+  return options.player.hand.map((card, index) => {
+    const hidden = hiddenCard({ player: options.player, zone: "hand", index })
+    if (!options.authorizedToViewReveals || !options.revealed.has(card.instanceId)) return hidden
+    // A reveal only grants the displayed face, never internal card IDs/actions.
+    return { ...hidden, name: card.name, imageUrl: card.imageUrl, isHidden: false, isRevealed: true }
+  })
 }
 
 function hiddenCards(options: { player: Player; zone: "hand" | "library" }): PublicCard[] {

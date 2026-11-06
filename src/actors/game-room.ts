@@ -11,6 +11,7 @@ import {
 import { MatchLog } from "./match-log.ts"
 import { parseAction } from "../game/action.ts"
 import { applyPlayerAction, buildPlayer } from "../game/player.ts"
+import { stampNewPendingSpells } from "../game/stack-order.ts"
 import {
   broadcastObservables,
   isPlayerInRoom,
@@ -312,9 +313,10 @@ export class GameRoom extends Actor {
     }
 
     const updated = applyPlayerAction({ player, action })
+    const sequenced = stampNewPendingSpells({ before: player, after: updated, roomVersion: room.version })
     this.#replacePlayer({
       room,
-      player: { ...updated, appliedMove: advancedMove({ player, moveNumber: options.moveNumber }) },
+      player: { ...sequenced, appliedMove: advancedMove({ player, moveNumber: options.moveNumber }) },
     })
     this.#armIdleSweep()
     this.commitAction("recordActionMetric", {

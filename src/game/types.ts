@@ -17,6 +17,8 @@ export type Card = {
   name: string
   scryfallId: string
   imageUrl: string
+  /** Monotonic room-version order when cast onto the pending-spell stack. */
+  stackOrder?: number
   /** Scryfall art_crop shows only the illustration on the compact tabletop. */
   artCropUrl?: string
   /** Printed stats can contain '*' or formulas, not only integers. */
@@ -77,6 +79,8 @@ export type Player = {
   deckRequestId: string | null
   library: Card[]
   hand: Card[]
+  /** IDs shared voluntarily while their cards remain in this player's hand. */
+  revealedHandCardIds?: string[]
   battlefield: BattlefieldCard[]
   /** Instants/sorceries that were cast and are awaiting manual resolution. */
   pendingSpells?: Card[]
@@ -104,6 +108,8 @@ export type Room = {
 
 export type PublicCard = Card & {
   isHidden?: boolean
+  /** Card owner explicitly chose to reveal this hand card to other players. */
+  isRevealed?: boolean
 }
 
 export type PublicBattlefieldCard = PublicCard & {
@@ -190,4 +196,6 @@ export type SeatFingerprint = PlayerSummary & {
   commanderInZone: boolean
   /** Observe spell arrivals/resolutions, even if permanent counts do not change. */
   pendingSpellIds: string[]
+  /** Reveals must invalidate both the owner and the opponent component. */
+  revealedHandCardIds: string[]
 }

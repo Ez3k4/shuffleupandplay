@@ -230,9 +230,7 @@ function renderPlayer(options: {
         ${
           isCurrentPlayer
             ? renderHand(player)
-            : `<p class="opponent-hand-hidden">
-                 Opponent's hand is hidden
-               </p>`
+            : renderOpponentHand(player)
         }
       </div>
 
@@ -355,18 +353,40 @@ const lifeControls = `
 }
 
 
+// Stage 25: the back-only opponent fan uses precisely the same visual rotation
+// metadata as the real hand. Hidden cards are already anonymized by
+// room-snapshot.ts. Never render a card face or private metadata for this fan.
+function handFanStyle(index: number, count: number): string {
+  const midpoint = (count - 1) / 2
+  const step = Math.min(4.2, 24 / Math.max(count - 1, 1))
+  const fromCenter = index - midpoint
+  const angle = fromCenter * step
+  const drop = Math.min(12, Math.abs(fromCenter) * 3)
+  return `--stage08-hand-angle:${angle.toFixed(2)}deg;--stage08-hand-drop:${drop.toFixed(1)}px;--stage08-hand-order:${index + 1}`
+}
+
+function renderOpponentHand(player: PublicPlayer): string {
+  // PublicPlayer.hand supplies placeholders for opponents, never card identities.
+  const backs = player.hand.map((card, index) => {
+    const isRevealed = card.isRevealed === true
+    const visibleFace = isRevealed
+      ? (card.imageUrl ? cardFace(card) : `<span class="stage26-no-image">${escapeHtml(card.name)}</span>`)
+      : `<span class="library-back-art"></span>`
+    const image = isRevealed ? ` ${previewAttributes(card)}` : ""
+    const revealClass = isRevealed ? " stage26-revealed-card" : ""
+    const ariaLabel = isRevealed ? `Revealed: ${card.name}` : "Face-down hand card"
+    return `<span class="hand-card stage25-opponent-card${revealClass}" data-stage25-hand-index="${index}" style="${attribute(handFanStyle(index, player.hand.length))}"${image} role="img" aria-label="${attribute(ariaLabel)}">${visibleFace}</span>`
+  }).join("")
+  return `<div class="hand-strip stage25-opponent-hand-strip" data-hand-count="${player.hand.length}" aria-label="Opponent hand: ${player.hand.length} cards">${backs}</div>`
+}
+
 // Stage 08 hand presentation: rotations are precomputed so that the HTML
 // remains a normal set of playable buttons. Only visual CSS variables change.
 function renderHand(player: PublicPlayer): string {
   const hand = [...player.hand].reverse()
-  const midpoint = (hand.length - 1) / 2
-  const step = Math.min(4.2, 24 / Math.max(hand.length - 1, 1))
   const cards = hand.map((card, index) => {
-    const fromCenter = index - midpoint
-    const angle = fromCenter * step
-    const drop = Math.min(12, Math.abs(fromCenter) * 3)
-    const style = `--stage08-hand-angle:${angle.toFixed(2)}deg;--stage08-hand-drop:${drop.toFixed(1)}px;--stage08-hand-order:${index + 1}`
-    return `<button type="button" class="hand-card" data-hand-play-instance-id="${attribute(card.instanceId)}" ${previewAttributes(card)} style="${attribute(style)}" aria-label="Drag ${attribute(card.name)} to play; right-click for more actions">${cardFace(card)}</button>`
+    const style = handFanStyle(index, hand.length)
+    return `<button type="button" class="hand-card${card.isRevealed ? " stage26-own-revealed" : ""}" data-stage26-revealed="${card.isRevealed === true}" data-hand-play-instance-id="${attribute(card.instanceId)}" ${previewAttributes(card)} style="${attribute(style)}" aria-label="Drag ${attribute(card.name)} to play; right-click for more actions">${cardFace(card)}</button>`
   }).join("")
 
   return `<div class="hand-strip" data-hand-count="${hand.length}">${cards}</div>`
@@ -409,7 +429,9 @@ function renderPendingSpells(player: PublicPlayer, isCurrentPlayer: boolean): st
     const resolve = isCurrentPlayer
       ? actionButton({ action: { type: "resolveSpell", instanceId: spell.instanceId }, label: "Resolve", className: "stage11-resolve-button", accessibleName: `Resolve ${spell.name} and move it to your graveyard` })
       : `<span class="stage11-awaiting">Waiting for player</span>`
-    return `<div class="stage11-spell-card" data-instance-id="${attribute(spell.instanceId)}" ${previewAttributes(spell)}>
+    const order = typeof spell.stackOrder === "number" && Number.isSafeInteger(spell.stackOrder)
+      ? ` data-stack-order="${spell.stackOrder}"` : ""
+    return `<div class="stage11-spell-card" data-instance-id="${attribute(spell.instanceId)}"${order} ${previewAttributes(spell)}>
       <img src="${attribute(spell.imageUrl)}" loading="lazy" alt="${attribute(spell.name)}" />
       <span class="stage11-spell-name">${escapeHtml(spell.name)}</span>
       ${resolve}

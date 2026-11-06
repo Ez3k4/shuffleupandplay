@@ -55,6 +55,17 @@ export interface ApplyPlayerActionOptions {
 }
 
 export function applyPlayerAction(options: ApplyPlayerActionOptions): Player {
+  const updated = applyPlayerActionCore(options)
+  const oldHand = new Set(options.player.hand.map((card) => card.instanceId))
+  const currentHand = new Set(updated.hand.map((card) => card.instanceId))
+  const revealedHandCardIds = (updated.revealedHandCardIds ?? []).filter(
+    (id) => oldHand.has(id) && currentHand.has(id),
+  )
+  if (!updated.revealedHandCardIds && !revealedHandCardIds.length) return updated
+  return { ...updated, revealedHandCardIds }
+}
+
+function applyPlayerActionCore(options: ApplyPlayerActionOptions): Player {
   const { action } = options
   const player = structuredClone(options.player)
   const randomness = options.randomness ?? defaultRandomness
@@ -95,6 +106,13 @@ export function applyPlayerAction(options: ApplyPlayerActionOptions): Player {
       return moveLibraryCardToHand({ player, instanceId: action.instanceId })
     case "playFromHand":
       return playFromHand({ player, instanceId: action.instanceId })
+    case "toggleHandReveal": {
+      if (!player.hand.some((card) => card.instanceId === action.instanceId)) return player
+      const ids = new Set(player.revealedHandCardIds ?? [])
+      if (ids.has(action.instanceId)) ids.delete(action.instanceId)
+      else ids.add(action.instanceId)
+      return { ...player, revealedHandCardIds: [...ids] }
+    }
     case "resolveSpell":
       return resolveSpell(player, action.instanceId)
     case "createToken":

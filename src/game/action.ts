@@ -17,6 +17,7 @@ export type GameAction =
   | { type: "closeDeckSearch" }
   | { type: "moveLibraryCardToHand"; instanceId: string }
   | { type: "playFromHand"; instanceId: string }
+  | { type: "toggleHandReveal"; instanceId: string }
   | { type: "resolveSpell"; instanceId: string }
   | { type: "toggleTap"; instanceId: string }
   | { type: "createToken"; tokenId: string; sourceInstanceId?: string; tokenCard?: DeckTokenCard }
@@ -95,6 +96,10 @@ const BUILDERS: Record<GameActionType, Builder> = {
     const instanceId = textIdentifier(attributes.instanceId)
     if (!instanceId) return null
     return { type: "moveLibraryCardToHand", instanceId }
+  },
+  toggleHandReveal: (attributes) => {
+    const instanceId = textIdentifier(attributes.instanceId)
+    return instanceId ? { type: "toggleHandReveal", instanceId } : null
   },
   playFromHand: (attributes) => {
     const instanceId = textIdentifier(attributes.instanceId)

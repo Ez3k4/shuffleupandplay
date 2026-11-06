@@ -1,6 +1,5 @@
 // @vitest-environment happy-dom
-// Verifies the shared display is only a DOM portal and never changes actions
-// or reveals an opponent-only Resolve button.
+// The overlay is a view over the persisted, globally ordered pending spells.
 import { afterEach, describe, expect, test } from 'vitest'
 import { mountStage12SpellOverlay, syncStage12SpellOverlay } from '../public/stage12-spells.js'
 
@@ -13,16 +12,16 @@ function setup() {
     <section class="player-section" data-player-id="p1">
       <div class="zone-summary-player"><strong>Alice</strong></div>
       <aside class="stage11-spell-area"><div class="stage11-spell-heading">On the stack</div>
-        <div class="stage11-spell-cards"><div class="stage11-spell-card">
-          <img alt="Bolt"><button data-game-action='{"type":"resolveSpell","instanceId":"bolt"}'>Resolve</button>
+        <div class="stage11-spell-cards"><div class="stage11-spell-card" data-instance-id="bolt" data-stack-order="25">
+          <img alt="Bolt"><span class="stage11-spell-name">Bolt</span><button data-game-action='{"type":"resolveSpell","instanceId":"bolt"}'>Resolve</button>
         </div></div>
       </aside>
     </section>
     <section class="player-section" data-player-id="p2">
       <div class="zone-summary-player"><strong>Bob</strong></div>
       <aside class="stage11-spell-area"><div class="stage11-spell-heading">On the stack</div>
-        <div class="stage11-spell-cards"><div class="stage11-spell-card">
-          <img alt="Counterspell"><span class="stage11-awaiting">Waiting for player</span>
+        <div class="stage11-spell-cards"><div class="stage11-spell-card" data-instance-id="counterspell" data-stack-order="28">
+          <img alt="Counterspell"><span class="stage11-spell-name">Counterspell</span><span class="stage11-awaiting">Waiting for player</span>
         </div></div>
       </aside>
     </section>
@@ -32,20 +31,22 @@ function setup() {
   return { game, board }
 }
 
-describe('Stage 12 shared stack DOM overlay', () => {
-  test('clones both seats at the divider while preserving original server markup', () => {
+const entries = (root) => [...root.querySelectorAll('.stage25-stack-entry')]
+
+describe('Stage 25 shared stack DOM overlay', () => {
+  test('sorts across both seats; newest spell is TOP, old originals stay intact', () => {
     const { game, board } = setup()
     cleanup = mountStage12SpellOverlay(game)
     const overlay = board.querySelector(':scope > .stage12-shared-spell-stack')
     expect(overlay.hidden).toBe(false)
-    expect(overlay.querySelectorAll('.stage12-spell-copy')).toHaveLength(2)
+    expect(entries(overlay).map((entry) => entry.dataset.instanceId)).toEqual(['bolt', 'counterspell'])
+    expect(overlay.querySelector('.stage25-stack-top').dataset.instanceId).toBe('counterspell')
+    expect(overlay.textContent).toContain('Last cast on top')
     expect(board.querySelectorAll('.player-section .stage11-spell-area')).toHaveLength(2)
-    expect(overlay.textContent).toContain('Alice · on the stack')
-    expect(overlay.textContent).toContain('Bob · on the stack')
     expect(overlay.querySelectorAll('[data-game-action]')).toHaveLength(1)
   })
 
-  test('keeps the existing delegated action on cloned Resolve buttons', () => {
+  test('keeps delegated action on cloned Resolve buttons', () => {
     const { game } = setup()
     cleanup = mountStage12SpellOverlay(game)
     let received = null
@@ -57,7 +58,25 @@ describe('Stage 12 shared stack DOM overlay', () => {
     expect(received).toEqual({ type: 'resolveSpell', instanceId: 'bolt' })
   })
 
-  test('rebuilds after server-side player refresh and hides when all spells resolve', async () => {
+  test('preserves existing card animation state after unrelated refresh', () => {
+    const { game, board } = setup()
+    cleanup = mountStage12SpellOverlay(game)
+    const overlay = board.querySelector('.stage12-shared-spell-stack')
+    expect(overlay.querySelectorAll('.stage25-stack-entering')).toHaveLength(2)
+    expect(syncStage12SpellOverlay(board, overlay)).toBe(2)
+    expect(overlay.querySelectorAll('.stage25-stack-entering')).toHaveLength(0)
+  })
+
+  test('falls back explicitly for legacy saved spells without a known order', () => {
+    const { game, board } = setup()
+    for (const spell of board.querySelectorAll('.stage11-spell-card')) spell.removeAttribute('data-stack-order')
+    cleanup = mountStage12SpellOverlay(game)
+    const overlay = board.querySelector('.stage12-shared-spell-stack')
+    expect(overlay.textContent).toContain('unknown cross-player order')
+    expect(overlay.querySelector('.stage25-stack-top')).toBeNull()
+  })
+
+  test('rebuilds after server refresh and hides when all spells resolve', async () => {
     const { game, board } = setup()
     cleanup = mountStage12SpellOverlay(game)
     for (const original of board.querySelectorAll('.player-section .stage11-spell-area')) original.remove()
@@ -66,10 +85,11 @@ describe('Stage 12 shared stack DOM overlay', () => {
     expect(overlay.hidden).toBe(true)
     expect(overlay.children).toHaveLength(0)
     const alice = board.querySelector('[data-player-id="p1"]')
-    alice.insertAdjacentHTML('beforeend', `<aside class="stage11-spell-area"><div class="stage11-spell-heading">On the stack</div><span>New spell</span></aside>`)
+    alice.insertAdjacentHTML('beforeend', `<aside class="stage11-spell-area"><div class="stage11-spell-heading">On the stack</div><div class="stage11-spell-card" data-instance-id="new" data-stack-order="30"><span class="stage11-spell-name">New spell</span></div></aside>`)
     await tick()
     expect(overlay.hidden).toBe(false)
     expect(overlay.textContent).toContain('New spell')
     expect(syncStage12SpellOverlay(board, overlay)).toBe(1)
+    expect(overlay.querySelector('.stage25-stack-top').dataset.instanceId).toBe('new')
   })
 })

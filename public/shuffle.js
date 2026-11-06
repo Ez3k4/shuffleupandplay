@@ -158,6 +158,7 @@ function start(game) {
   wireActions(game, actorId)
   wireStage09HandDrag(game, actorId)
   wireStage21StableHandHover(game)
+  wireStage25OpponentHandHover(game)
   wireStage09LifeControl(actorId)
   wireStage17StatControls(actorId)
   wireStage19CounterControls(actorId)
@@ -749,6 +750,71 @@ function wireStage21StableHandHover(game) {
   }).observe(game.querySelector('#players-area') ?? game, { childList: true, subtree: true })
 }
 
+// ===== Stage 25: mirrored face-down opponent hand fan =====
+// Choose cards from their stationary layout positions, like Stage 21, rather
+// than CSS :hover (which flickers when the raised card moves below the cursor).
+// Only placeholder indices are used: no opponent card identity is available.
+function wireStage25OpponentHandHover(game) {
+  let activeStrip = null
+  let activeCard = null
+  let activeIndex = null
+
+  function clear() {
+    activeStrip?.classList.remove('stage25-hovering')
+    activeCard?.classList.remove('stage25-raised')
+    activeStrip = null
+    activeCard = null
+    activeIndex = null
+  }
+
+  function select(strip, card) {
+    if (activeStrip === strip && activeCard === card) return
+    clear()
+    activeStrip = strip
+    activeCard = card
+    activeIndex = card.dataset.stage25HandIndex
+    strip.classList.add('stage25-hovering')
+    card.classList.add('stage25-raised')
+  }
+
+  const findStrip = () => game.querySelector(
+    '.stage16-opponent-panel:not([hidden]) .stage25-opponent-hand-strip'
+  ) ?? game.querySelector('.opponent-seat .stage25-opponent-hand-strip')
+
+  document.addEventListener('pointermove', (event) => {
+    if (event.pointerType !== 'mouse' || event.buttons !== 0) return
+    const strip = findStrip()
+    if (!strip || !strip.isConnected) { clear(); return }
+    const rect = strip.getBoundingClientRect()
+    const x = event.clientX - rect.left
+    const withinRestStrip = event.clientY >= rect.top - 6 &&
+      event.clientY <= rect.bottom + 8 && x >= -6 && x <= rect.width + 6
+    if (!withinRestStrip) {
+      if (activeCard?.isConnected && activeCard.contains(event.target)) return
+      clear()
+      return
+    }
+    let candidate = null
+    for (const card of strip.querySelectorAll('.stage25-opponent-card')) {
+      if (x >= card.offsetLeft - 4 && x <= card.offsetLeft + card.offsetWidth + 4) {
+        candidate = card
+      }
+    }
+    if (candidate) select(strip, candidate)
+    else clear()
+  }, { passive: true })
+  document.addEventListener('pointercancel', clear)
+  window.addEventListener('blur', clear)
+  new MutationObserver(() => {
+    if (!activeIndex || activeCard?.isConnected) return
+    const strip = findStrip()
+    const card = [...(strip?.querySelectorAll('.stage25-opponent-card') ?? [])]
+      .find((item) => item.dataset.stage25HandIndex === activeIndex)
+    if (strip && card) select(strip, card)
+    else clear()
+  }).observe(game.querySelector('#players-area') ?? game, { childList: true, subtree: true })
+}
+
 // ===== Stage 17: one reusable token picker for every right-click menu =====
 // Keeping the choices in a single dialog avoids multiplying DOM nodes with
 // each additional card in large multiplayer games. IDs are server-validated.
@@ -899,6 +965,7 @@ function wireStage18HandMenu() {
       <button type="button" data-stage18-hand-move="graveyard" class="stage18-zone-graveyard" title="Move to graveyard" aria-label="Move to graveyard">☠</button>
       <button type="button" data-stage18-hand-move="exile" class="stage18-zone-exile" title="Move to exile" aria-label="Move to exile">✧</button>
     </div>
+    <button type="button" class="stage26-hand-reveal" data-stage26-hand-reveal aria-pressed="false">◉ Show to opponent</button>
     <button type="button" class="stage18-hand-token-copy" data-stage18-hand-copy>⧉ Create token copy</button>`
   document.body.append(menu)
   let selected = null
@@ -921,6 +988,11 @@ function wireStage18HandMenu() {
       button.dataset.gameAction = JSON.stringify(actions[button.dataset.stage18HandMove])
     }
     menu.querySelector('[data-stage18-hand-copy]').dataset.gameAction = JSON.stringify({type:'createTokenCopy',instanceId:selected})
+    const revealButton = menu.querySelector('[data-stage26-hand-reveal]')
+    const isRevealed = card.dataset.stage26Revealed === 'true'
+    revealButton.textContent = isRevealed ? '◉ Hide from opponent' : '◉ Show to opponent'
+    revealButton.setAttribute('aria-pressed', String(isRevealed))
+    revealButton.dataset.gameAction = JSON.stringify({type:'toggleHandReveal',instanceId:selected})
     menu.hidden = false
     const rect = menu.getBoundingClientRect()
     const cardRect = card.getBoundingClientRect()

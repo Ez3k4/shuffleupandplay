@@ -5363,3 +5363,383 @@ main.layout[data-game] .stage24c-rules-panel a { color: #e9c790; }
     margin: 0.25rem 0.35rem 0 0.35rem;
   }
 }
+
+
+/* ===== Stage 25A: increase distance between walkers and their land rows =====
+ * The top seat is mirrored: its walkers move DOWN from the top land row.
+ * Extra clearance is bounded on short laptop screens.
+ */
+#players-area .player-section > .stage12-planeswalker-area {
+  bottom: calc(var(--stage24b-land-clearance, 107px) + 2.1rem + clamp(9px, 1.45dvh, 18px));
+}
+#players-area .opponent-seat > .stage12-planeswalker-area {
+  bottom: auto;
+  top: calc(var(--stage24b-land-clearance, 107px) + 1.1rem + clamp(9px, 1.45dvh, 18px));
+}
+
+/* ===== Stage 25B: actual Magic card back (Scryfall static image) =====
+ * Shared by both library piles and the face-down opponent hand. The original
+ * dark radial styling is retained underneath if the network image fails.
+ */
+#players-area .library-back-art {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: inherit;
+  background-image: url("https://cards.scryfall.io/back.png"),
+    radial-gradient(ellipse at center, #9c7640 0%, #49311e 35%, #19191e 75%);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+/* ===== Stage 25C: mirrored, back-only, non-interactive opponent hand =====
+ * The top edge is the mirror of our bottom hand. A card shows just its upper
+ * strip at rest, revealing the full back downward when pointed at. The card
+ * artwork never exposes the opponent's hidden identities or card actions.
+ */
+#players-area .opponent-seat .player-zones .hand-zone {
+  position: absolute;
+  top: 0.22rem;
+  bottom: auto;
+  left: calc((100% - var(--opponent-pile-width) - 1rem) / 2);
+  width: max-content;
+  max-width: calc(100% - var(--opponent-pile-width) - 1rem);
+  display: block;
+  padding: 0;
+  margin: 0;
+  transform: translateX(-50%);
+  border: 0;
+  background: none;
+  overflow: visible;
+  pointer-events: auto;
+  --stage25-hand-width: min(calc(var(--stage10-hand-width, 132px) * 0.82), clamp(76px, 12vw, 135px));
+  --stage25-hand-peek: clamp(28px, 4.5dvh, 43px);
+  --stage25-hand-lift: clamp(10px, 1.5dvh, 18px);
+}
+#players-area .opponent-seat .player-zones .hand-zone-label { display: none; }
+#players-area .opponent-seat .player-zones .stage25-opponent-hand-strip {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: max-content;
+  max-width: 100%;
+  height: var(--stage25-hand-peek);
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
+  --stage25-overlap: calc(var(--stage25-hand-width) * .57);
+}
+#players-area .opponent-seat .stage25-opponent-hand-strip:has(.stage25-opponent-card:nth-child(n + 9)) {
+  --stage25-overlap: calc(var(--stage25-hand-width) * .73);
+}
+#players-area .opponent-seat .stage25-opponent-hand-strip:has(.stage25-opponent-card:nth-child(n + 13)) {
+  --stage25-overlap: calc(var(--stage25-hand-width) * .86);
+}
+#players-area .opponent-seat .player-zones .stage25-opponent-card {
+  display: block;
+  position: relative;
+  flex: 0 0 var(--stage25-hand-width);
+  width: var(--stage25-hand-width);
+  min-width: 0;
+  height: calc(var(--stage25-hand-width) * 680 / 488);
+  padding: 0;
+  border: 2px solid #0b0d11;
+  border-radius: 7px;
+  box-sizing: border-box;
+  background: #171a1f;
+  transform-origin: center top;
+  transform: translateY(var(--stage08-hand-drop, 0px)) rotate(var(--stage08-hand-angle, 0deg));
+  clip-path: inset(0 0 calc(100% - var(--stage25-hand-peek)) 0 round 7px);
+  transition: transform 190ms cubic-bezier(.2,.72,.18,1), clip-path 190ms ease, box-shadow 190ms ease;
+  z-index: var(--stage08-hand-order, 1);
+  box-shadow: 0 5px 14px #000b;
+  user-select: none;
+}
+#players-area .opponent-seat .stage25-opponent-card + .stage25-opponent-card {
+  margin-left: calc(-1 * var(--stage25-overlap));
+}
+#players-area .opponent-seat .stage25-opponent-hand-strip.stage25-hovering .stage25-opponent-card {
+  transform: translateY(calc(var(--stage08-hand-drop, 0px) + 4px)) rotate(var(--stage08-hand-angle, 0deg));
+}
+#players-area .opponent-seat .stage25-opponent-hand-strip .stage25-opponent-card.stage25-raised {
+  clip-path: inset(0 0 0 0 round 7px);
+  transform: translateY(var(--stage25-hand-lift)) rotate(0deg) scale(1.04);
+  box-shadow: 0 14px 28px #000d, 0 0 0 2px #cda76d;
+  z-index: 150 !important;
+}
+#players-area .opponent-seat .stage25-opponent-card .library-back-art {
+  display: block;
+  pointer-events: none;
+}
+@media (max-width: 760px) {
+  #players-area .opponent-seat .stage25-opponent-card {
+    transform: translateY(var(--stage08-hand-drop, 0px)) rotate(calc(var(--stage08-hand-angle, 0deg) * .45));
+  }
+}
+@media (max-width: 550px) {
+  #players-area .opponent-seat .player-zones .hand-zone {
+    --stage25-hand-width: clamp(60px, 13vw, 86px);
+    --stage25-overlap: calc(var(--stage25-hand-width) * .83);
+  }
+}
+
+/* ===== Stage 25D: soft Firefox and Chromium scrollbars in compact lanes =====
+ * Horizontal scrolling remains possible on small screens and with many cards.
+ */
+#players-area .stage7-land-row,
+#players-area .stage12-planeswalker-area .stage7-land-row,
+#players-area .stage12-utility-area .stage7-land-row {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(159, 157, 145, 0.28) transparent;
+  overscroll-behavior-x: contain;
+}
+#players-area .stage7-land-row::-webkit-scrollbar,
+#players-area .stage12-planeswalker-area .stage7-land-row::-webkit-scrollbar,
+#players-area .stage12-utility-area .stage7-land-row::-webkit-scrollbar {
+  height: 4px;
+}
+#players-area .stage7-land-row::-webkit-scrollbar-track,
+#players-area .stage12-planeswalker-area .stage7-land-row::-webkit-scrollbar-track,
+#players-area .stage12-utility-area .stage7-land-row::-webkit-scrollbar-track {
+  background: transparent;
+}
+#players-area .stage7-land-row::-webkit-scrollbar-thumb,
+#players-area .stage12-planeswalker-area .stage7-land-row::-webkit-scrollbar-thumb,
+#players-area .stage12-utility-area .stage7-land-row::-webkit-scrollbar-thumb {
+  background: rgba(159, 157, 145, 0.30);
+  border-radius: 20px;
+}
+#players-area .stage7-land-row:hover::-webkit-scrollbar-thumb,
+#players-area .stage12-planeswalker-area .stage7-land-row:hover::-webkit-scrollbar-thumb,
+#players-area .stage12-utility-area .stage7-land-row:hover::-webkit-scrollbar-thumb {
+  background: rgba(194, 174, 137, 0.55);
+}
+
+/* ===== Stage 25E: ordered stack with obvious top card and deal animation =====
+ * There is a single shared row (bottom -> top), not two player panels.
+ * Resolve controls remain clickable and are still validated by the server.
+ */
+#players-area > .stage12-shared-spell-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0.45rem;
+  width: max-content;
+  min-width: 0;
+  max-width: min(82vw, 760px);
+  max-height: min(55dvh, 360px);
+  padding: 0.55rem 0.65rem;
+  overflow: visible;
+  box-sizing: border-box;
+}
+#players-area .stage25-stack-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  color: #f1d49f;
+  line-height: 1.25;
+  font-size: 0.74rem;
+  text-align: center;
+}
+#players-area .stage25-stack-heading span { color: #c6bdac; font-size: .65rem; }
+#players-area .stage25-stack-track {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0.5rem 0.15rem 0.4rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(190,165,119,.35) transparent;
+}
+#players-area .stage25-stack-entry {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 clamp(80px, 10vw, 114px);
+  min-width: 0;
+  gap: .17rem;
+  position: relative;
+  z-index: calc(2 + var(--stage25-stack-index, 0));
+  padding: .22rem;
+  border-radius: 8px;
+  border: 1px solid rgba(189,174,138,.36);
+  background: rgba(24,31,34,.95);
+  box-shadow: 1px 5px 12px #0008;
+}
+#players-area .stage25-stack-entry .stage11-spell-card {
+  display: flex;
+  flex: initial;
+  gap: .14rem;
+  min-width: 0;
+  width: 100%;
+}
+#players-area .stage25-stack-position {
+  display: block;
+  font-size: .60rem;
+  text-align: center;
+  line-height: 1.2;
+  font-weight: 750;
+  color: #d2c3a5;
+}
+#players-area .stage25-stack-owner {
+  color: #c6b99d;
+  font-size: .65rem;
+  font-weight: 650;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#players-area .stage25-stack-top {
+  z-index: 100;
+  border: 2px solid #edbc59;
+  background: #283025;
+  box-shadow: 0 0 0 2px #edbc592e, 0 10px 26px #000b;
+  transform: translateY(-5px);
+}
+#players-area .stage25-stack-top .stage25-stack-position {
+  background: #edbc59;
+  color: #161910;
+  border-radius: 4px;
+  padding: .16rem .1rem;
+  font-size: .66rem;
+}
+#players-area .stage25-stack-entering {
+  animation: stage25-stack-deal 270ms cubic-bezier(.17,.67,.2,1.18) both;
+}
+@keyframes stage25-stack-deal {
+  from { opacity: .4; translate: 15px 15px; rotate: 3deg; }
+  to   { opacity: 1; translate: 0 0; rotate: 0deg; }
+}
+@media (max-width: 700px) {
+  #players-area > .stage12-shared-spell-stack {
+    max-width: 92vw;
+    padding: .3rem;
+  }
+  #players-area .stage25-stack-track { gap: .35rem; }
+  #players-area .stage25-stack-entry { flex-basis: 80px; }
+  #players-area .stage25-stack-position { font-size: .56rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #players-area .stage25-opponent-card { transition: none !important; }
+  #players-area .stage25-stack-entering { animation: none; }
+}
+
+/* Compress the mirrored fan before it reaches the opponent's piles on phones. */
+@media (max-width: 550px) {
+  #players-area .opponent-seat .stage25-opponent-hand-strip,
+  #players-area .opponent-seat .stage25-opponent-hand-strip:has(.stage25-opponent-card:nth-child(n + 9)),
+  #players-area .opponent-seat .stage25-opponent-hand-strip:has(.stage25-opponent-card:nth-child(n + 13)) {
+    --stage25-overlap: calc(var(--stage25-hand-width) * .88);
+  }
+}
+
+/* ===== Stage 26: Arena-inspired inverted opponent fan + voluntary reveals ===== */
+/* The opponent faces the other direction: turn the back/card image around,
+   reverse the fan tilt and curve, but preserve the stationary hover targets. */
+/* Stage 26B: flip the WHOLE card, not just its artwork.  The top edge
+   of the opponent fan shows the bottoms of inverted cards, as in Arena.
+   Explicit raised rules override Stage 25's preexisting unflipped hover. */
+#players-area .opponent-seat .player-zones .stage25-opponent-card {
+  --stage26-fan-angle: calc(180deg - var(--stage08-hand-angle, 0deg));
+  --stage26-fan-drop: calc(12px - var(--stage08-hand-drop, 0px));
+  transform-origin: center center;
+  transform: translateY(var(--stage26-fan-drop)) rotate(var(--stage26-fan-angle));
+  clip-path: inset(calc(100% - var(--stage25-hand-peek)) 0 0 0 round 7px);
+}
+#players-area .opponent-seat .stage25-opponent-hand-strip.stage25-hovering .stage25-opponent-card {
+  transform: translateY(calc(var(--stage26-fan-drop) + 4px)) rotate(var(--stage26-fan-angle));
+}
+#players-area .opponent-seat .stage25-opponent-hand-strip .stage25-opponent-card.stage25-raised {
+  transform: translateY(var(--stage25-hand-lift)) rotate(180deg) scale(1.04);
+  clip-path: inset(0 0 0 0 round 7px);
+}
+#players-area .opponent-seat .stage25-opponent-card > .library-back-art,
+#players-area .opponent-seat .stage25-opponent-card > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  box-sizing: border-box;
+  padding: 0;
+  transform: none;
+}
+#players-area .opponent-seat .stage25-opponent-card > span:not(.library-back-art) { display: none; }
+/* A raised voluntarily revealed card is readable on the local display. */
+#players-area .opponent-seat .stage25-opponent-card.stage25-raised > img,
+#players-area .opponent-seat .stage25-opponent-card.stage25-raised > .library-back-art {
+  transform: rotate(180deg);
+}
+#players-area .opponent-seat .stage25-opponent-card.stage26-revealed-card {
+  border-color: #d4aa62;
+  box-shadow: 0 5px 15px #000b, inset 0 0 0 1px #d4aa6280;
+}
+#players-area .your-seat .hand-card.stage26-own-revealed {
+  box-shadow: 0 0 0 2px #ddb56e, 0 9px 20px #0009;
+}
+/* Restore the existing Hand N summary next to the opponent's name/life. */
+#players-area[data-stage16-players] .stage16-opponent-panel:not([hidden]) .opponent-seat .zone-summary-info {
+  display: inline-flex;
+  position: static;
+  align-items: center;
+  width: auto;
+  gap: 0;
+  min-width: 0;
+  margin-left: .25rem;
+  padding: 0;
+  background: none;
+  border: 0;
+}
+#players-area .opponent-seat .zone-summary-info > [data-zone-count="hand"] {
+  display: inline-flex !important;
+  white-space: nowrap;
+  padding: .22rem .55rem;
+  color: #ffe3a3;
+  font-size: .9rem;
+  font-weight: 750;
+  border: 1px solid #d7ad5e;
+  border-radius: 7px;
+  background: rgba(33, 39, 30, .96);
+}
+.stage18-hand-menu .stage26-hand-reveal {
+  padding: .5rem .55rem;
+  border: 1px solid rgba(211, 169, 95, .75);
+  border-radius: 6px;
+  background: #354032;
+  color: #f8eac8;
+  text-align: left;
+  font-weight: 600;
+  cursor: pointer;
+}
+.stage18-hand-menu .stage26-hand-reveal[aria-pressed="true"] { background: #453626; }
+@media (max-width: 760px) {
+  #players-area .opponent-seat .player-zones .stage25-opponent-card {
+    --stage26-fan-angle: calc(180deg - .45 * var(--stage08-hand-angle, 0deg));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #players-area .opponent-seat .stage25-opponent-card > img,
+  #players-area .opponent-seat .stage25-opponent-card > .library-back-art { transition: none; }
+}
+
+#players-area .opponent-seat .stage25-opponent-card > span.stage26-no-image {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  box-sizing: border-box;
+  padding: .5rem;
+  color: #fff1ce;
+  font-size: .8rem;
+  overflow-wrap: anywhere;
+  text-align: center;
+  background: #232d30;
+}
+#players-area[data-stage16-players] .stage16-opponent-panel:not([hidden]) .opponent-seat .zone-summary {
+  max-width: min(75%, 420px);
+}
