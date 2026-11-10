@@ -22,14 +22,16 @@ export type TestClient = {
 
 export type TestServerOptions = TestRuntimeOptions & {
   operatorDashboard?: ShuffleOperatorDashboardOptions
+  experimentalEngineEnabled?: boolean
 }
 
 export async function startTestServer(options: TestServerOptions = {}): Promise<TestServer> {
-  const { operatorDashboard, ...runtimeOptions } = options
+  const { operatorDashboard, experimentalEngineEnabled, ...runtimeOptions } = options
   const harness = await startTestRuntime(runtimeOptions)
   const server = createShuffleServer({
     application: harness.application,
     secret: SECRET,
+    ...(experimentalEngineEnabled ? { experimentalEngineEnabled } : {}),
     ...(operatorDashboard ? { operatorDashboard } : {}),
   })
   const port = await server.listen(0)

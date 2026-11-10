@@ -81,6 +81,12 @@ const REJECTION_STATUSES: Record<string, number> = {
   roomFull: 409,
   notAPlayer: 403,
   invalidAction: 400,
+  engineHostOnly: 403,
+  engineTwoPlayers: 409,
+  engineNeedsDecks: 409,
+  engineInvalidDecks: 422,
+  engineNotStarted: 409,
+  engineIllegalCommand: 422,
 }
 
 const STATIC_ROOTS: Record<string, string> = {
@@ -113,6 +119,8 @@ export type ShuffleServerOptions = {
   application: ShuffleApplication
   secret: string
   secureCookies?: boolean
+  /** Off by default: experimental rules are incomplete. Enable only in local testing. */
+  experimentalEngineEnabled?: boolean
   operatorDashboard?: ShuffleOperatorDashboardOptions
 }
 
@@ -217,6 +225,7 @@ export function createShuffleServer(options: ShuffleServerOptions): ShuffleServe
           requestSession,
           limits,
           liveTables,
+          experimentalEngineEnabled: options.experimentalEngineEnabled === true,
         }).catch((handleError) => {
           respondToUnhandledError({ response, error: handleError })
         })
@@ -257,6 +266,7 @@ async function handle(options: {
   requestSession: RequestSession
   limits: RequestLimits
   liveTables: LiveTablesView | undefined
+  experimentalEngineEnabled: boolean
 }): Promise<void> {
   const { request, response, application, runtime, requestSession, limits, liveTables } = options
   const url = new URL(request.url ?? "/", requestOrigin(request))
@@ -271,7 +281,8 @@ async function handle(options: {
   }
 
   try {
-    await route({ context, application, runtime, limits, liveTables })
+    await route({ context, application, runtime, limits, liveTables,
+      experimentalEngineEnabled: options.experimentalEngineEnabled })
   } catch (error) {
     respondToError({ context, error })
   }
@@ -283,6 +294,7 @@ async function route(options: {
   runtime: SolidObjectsRuntime
   limits: RequestLimits
   liveTables: LiveTablesView | undefined
+  experimentalEngineEnabled: boolean
 }): Promise<void> {
   const { context, application, runtime, limits, liveTables } = options
   const path = context.url.pathname
@@ -322,6 +334,25 @@ async function route(options: {
   }
   if (method === "GET" && path === OPERATOR_TABLES_PATH) {
     return showOperatorTables({ context, liveTables })
+  }
+
+  // Stage 28A is an opt-in, JSON-only backend API. Prototype draw/move/stack
+  // commands cannot reach this route; only the server-approved priority pass.
+  const experimentalMatch =
+    /^\/api\/tables\/([A-Za-z0-9]{1,6})\/engine(?:\/(start|priority))?$/.exec(path)
+  if (experimentalMatch) {
+    if (!options.experimentalEngineEnabled) {
+      return sendJson({ context, status: 404, body: { error: "Not found" } })
+    }
+    const roomCode = normalizeRoomCode(experimentalMatch[1])
+    const operation = experimentalMatch[2] ?? "view"
+    if (method === "GET" && operation === "view") {
+      return showExperimentalEngine({ context, runtime, roomCode })
+    }
+    if (method === "POST" && (operation === "start" || operation === "priority")) {
+      return commandExperimentalEngine({ context, runtime, roomCode, operation })
+    }
+    return sendJson({ context, status: 405, body: { error: "Method not allowed" } })
   }
 
   const spaceMatch =
@@ -678,6 +709,54 @@ async function loadDeck(options: {
   if (prefersHtml(context)) return sendRedirect({ context, location: `/tables/${roomCode}` })
 
   sendJson({ context, status: 202, body: { status: "requested", deckId } })
+}
+
+async function showExperimentalEngine(options: {
+  context: RequestContext
+  runtime: SolidObjectsRuntime
+  roomCode: string
+}): Promise<void> {
+  const { context, runtime, roomCode } = options
+  const ref = runtime.ref(GameRoom, roomCode).with({
+    authorizationContext: viewerFor(options),
+  })
+  const view = await ref.experimentalEngineView({ sessionId: context.sessionId })
+  sendJson({ context, status: 200, body: view })
+}
+
+async function commandExperimentalEngine(options: {
+  context: RequestContext
+  runtime: SolidObjectsRuntime
+  roomCode: string
+  operation: "start" | "priority"
+}): Promise<void> {
+  const { context, runtime, roomCode, operation } = options
+  if (!(context.request.headers["content-type"] ?? "").includes("application/json")) {
+    return sendJson({ context, status: 415, body: { error: "Expected JSON request" } })
+  }
+  // Reject cross-origin form/script submissions, as a defense in depth for
+  // cookie-authenticated state-changing experimental endpoints.
+  const origin = context.request.headers.origin
+  if (typeof origin === "string" && origin !== context.url.origin) {
+    return sendJson({ context, status: 403, body: { error: "Origin not allowed" } })
+  }
+  const body = await readBody(context.request)
+  if (Object.keys(body).length !== 0) {
+    return sendJson({ context, status: 400, body: { error: "This prototype accepts no command payload" } })
+  }
+  const ref = runtime.ref(GameRoom, roomCode).with({
+    authorizationContext: viewerFor(options),
+    ...idempotency(context),
+  })
+  if (operation === "start") {
+    await ref.startExperimentalEngine({ sessionId: context.sessionId })
+  } else {
+    await ref.passExperimentalPriority({ sessionId: context.sessionId })
+  }
+  const view = await runtime.ref(GameRoom, roomCode)
+    .with({ authorizationContext: viewerFor(options) })
+    .experimentalEngineView({ sessionId: context.sessionId })
+  sendJson({ context, status: 200, body: view })
 }
 
 async function applyAction(options: {

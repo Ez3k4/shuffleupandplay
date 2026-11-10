@@ -9,6 +9,10 @@ import {
 } from "solid-objects"
 
 import { MatchLog } from "./match-log.ts"
+import { createEngineState, applyEngineCommand } from "../engine/reducer.ts"
+import { seedEngineLibraries } from "../engine/zones.ts"
+import { projectEngineServerView, type EngineServerView } from "../engine/server-view.ts"
+import type { EngineState } from "../engine/types.ts"
 import { parseAction } from "../game/action.ts"
 import { applyPlayerAction, buildPlayer } from "../game/player.ts"
 import { stampNewPendingSpells } from "../game/stack-order.ts"
@@ -54,7 +58,7 @@ type DeckEffectArguments = {
 
 export class GameRoom extends Actor {
   static override readonly actorType = "GameRoom"
-  static override readonly stateVersion = 7
+  static override readonly stateVersion = 8
   static override readonly migrations = [
     {
       from: 1,
@@ -126,6 +130,11 @@ export class GameRoom extends Actor {
         return { ...state, room: { maxPlayers: 2, ...room } }
       },
     },
+    {
+      from: 7,
+      to: 8,
+      migrate: (state: JsonObject): JsonObject => ({ ...state, experimentalEngine: null }),
+    },
   ]
 
   static override readonly payloads = {
@@ -140,6 +149,8 @@ export class GameRoom extends Actor {
   } satisfies PayloadBroadcasts<GameRoom, GameViewer>
 
   room: Room | null = null
+  /** Persisted separately from the existing manual tabletop Room. */
+  experimentalEngine: EngineState | null = null
 
   get roomName(): string | null {
     return this.room?.name ?? null
@@ -229,6 +240,67 @@ export class GameRoom extends Actor {
     this.#commit({ room: { ...room, players: [...room.players, player] } })
     this.#log({ event: "playerJoined", detail: player.name })
     return "joined"
+  }
+
+  /**
+   * Experimental mode is separate from manual play. Only seat one can initialize,
+   * and only after two seats have been filled. Card definitions come from the
+   * server's already-imported deck data, never from an HTTP request body.
+   */
+  startExperimentalEngine(options: { sessionId: string }): "started" | "alreadyStarted" {
+    const room = this.#requireRoom()
+    const caller = this.#requirePlayer({ room, sessionId: options.sessionId })
+    if (room.players[0]?.id !== caller.id) {
+      this.reject("engineHostOnly", { message: "Only the first seated player can start this experiment" })
+    }
+    if (room.players.length !== 2 || allowedPlayerCount(room.maxPlayers) !== 2) {
+      this.reject("engineTwoPlayers", { message: "The prototype requires exactly two players" })
+    }
+    if (this.experimentalEngine) return "alreadyStarted"
+
+    const [first, second] = room.players
+    if (!first || !second) throw new Error("Missing experimental engine participant")
+    if (first.deckStatus !== "loaded" || second.deckStatus !== "loaded") {
+      this.reject("engineNeedsDecks", { message: "Both players need loaded decks before starting" })
+    }
+    const engine = createEngineState(first.id, second.id)
+    // Snapshots of the server-trusted imported libraries, not untrusted card
+    // definitions supplied by a browser. No automatic shuffling or initial hand.
+    try {
+      this.experimentalEngine = seedEngineLibraries(engine, [
+        { playerId: first.id, cardDefinitionIds: first.library.map(engineCardDefinitionId) },
+        { playerId: second.id, cardDefinitionIds: second.library.map(engineCardDefinitionId) },
+      ])
+    } catch {
+      this.reject("engineInvalidDecks", { message: "The loaded decks are not usable by the prototype" })
+    }
+    this.#commit({ room })
+    return "started"
+  }
+
+  /** Server-authorized PASS_PRIORITY only. Never expose the 27B–D prototype commands. */
+  passExperimentalPriority(options: { sessionId: string }): "applied" {
+    const room = this.#requireRoom()
+    const player = this.#requirePlayer({ room, sessionId: options.sessionId })
+    if (!this.experimentalEngine) {
+      this.reject("engineNotStarted", { message: "The experimental engine has not started" })
+    }
+    const transition = applyEngineCommand(this.experimentalEngine, player.id, {
+      type: "PASS_PRIORITY",
+    })
+    if (!transition.accepted) {
+      this.reject("engineIllegalCommand", { message: transition.reason })
+    }
+    this.experimentalEngine = transition.state
+    this.#commit({ room })
+    return "applied"
+  }
+
+  /** The ONLY engine response returned to HTTP: always project for the seated viewer. */
+  experimentalEngineView(options: { sessionId: string }): EngineServerView {
+    const room = this.#requireRoom()
+    const player = this.#requirePlayer({ room, sessionId: options.sessionId })
+    return projectEngineServerView(this.experimentalEngine, player.id, room.version)
   }
 
   requestDeck(options: { deckId: string; sessionId: string }): "requested" {
@@ -435,4 +507,10 @@ function normalizedName(options: {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function engineCardDefinitionId(card: Card): string {
+  const id = typeof card.scryfallId === "string" ? card.scryfallId.trim() : ""
+  if (id) return id
+  return typeof card.name === "string" ? card.name.trim() : ""
 }

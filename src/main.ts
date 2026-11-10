@@ -39,6 +39,7 @@ const server = createShuffleServer({
   application,
   secret,
   secureCookies: process.env.NODE_ENV === "production",
+  experimentalEngineEnabled: process.env.SHUFFLE_EXPERIMENTAL_ENGINE === "1",
   ...(operatorDashboardAccess
     ? {
         operatorDashboard: {
