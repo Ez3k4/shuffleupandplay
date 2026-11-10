@@ -7,6 +7,7 @@ export function engineUiModel(view, viewerId, seat) {
       active: false,
       canStart: seat === 1,
       canPass: false,
+      canDraw: false,
       caption: "Not started",
       message: seat === 1 ? "Load both players' decks, then start the engine test." : "Waiting for the host to start the engine test.",
       turn: "—", step: "—", activePlayer: "—", priority: "—", stack: "—", cards: "—",
@@ -20,6 +21,8 @@ export function engineUiModel(view, viewerId, seat) {
     active: true,
     canStart: false,
     canPass: view.priorityPlayerId === viewerId,
+    canDraw: view.priorityPlayerId === viewerId && Number.isSafeInteger(view.roomVersion) && link?.status === "synced" &&
+      (view.zones?.hiddenZones?.find((zone) => zone.playerId === viewerId && zone.zone === "library")?.count ?? 0) > 0,
     caption: `Turn ${view.turnNumber}`,
     message: link?.status === "out_of_sync" ?
       "Manual cards have changed since the engine started. This prototype will not synchronize them automatically." :
@@ -44,6 +47,7 @@ function mountEnginePanel() {
   const find = (name) => panel.querySelector(`[data-engine-${name}]`)
   const start = find("start")
   const pass = find("pass")
+  const draw = find("draw")
   const refreshButton = find("refresh")
   const error = find("error")
   const message = find("message")
@@ -59,8 +63,10 @@ function mountEnginePanel() {
     message.textContent = model.message
     start.hidden = !model.canStart
     pass.hidden = !model.active
+    draw.hidden = !model.active
     start.disabled = pending
     pass.disabled = pending || !model.canPass
+    draw.disabled = pending || !model.canDraw
     refreshButton.disabled = pending
     find("details").hidden = !model.active
     for (const name of ["turn", "step", "active", "priority", "stack", "cards"]) {
@@ -74,12 +80,13 @@ function mountEnginePanel() {
     error.hidden = !value
   }
 
-  async function json(endpoint, method = "GET") {
+  async function json(endpoint, method = "GET", deduplicationKey = null, expectedRoomVersion = null) {
     const response = await fetch(`/api/tables/${encodeURIComponent(code)}/engine${endpoint}`, {
       method,
       credentials: "same-origin",
-      headers: { accept: "application/json", ...(method === "POST" ? { "content-type": "application/json" } : {}) },
-      ...(method === "POST" ? { body: "{}" } : {}),
+      headers: { accept: "application/json", ...(method === "POST" ? { "content-type": "application/json" } : {}),
+        ...(deduplicationKey ? { "idempotency-key": deduplicationKey } : {}) },
+      ...(method === "POST" ? { body: endpoint === "/draw" ? JSON.stringify({ expectedRoomVersion }) : "{}" } : {}),
     })
     const data = await response.json().catch(() => ({}))
     if (!response.ok) throw new Error(data.error || `Server returned HTTP ${response.status}`)
@@ -109,7 +116,11 @@ function mountEnginePanel() {
     setError("")
     render(lastView)
     try {
-      render(await json(endpoint, "POST"))
+      // One unique key per button press. Repeated transport attempts with the
+      // same key are handled once by the server-side actor runtime.
+      const key = endpoint === "/draw" ? `stage28d-${crypto.randomUUID()}` : null
+      const expectedRoomVersion = endpoint === "/draw" ? lastView.roomVersion : null
+      render(await json(endpoint, "POST", key, expectedRoomVersion))
     } catch (cause) {
       setError(cause.message)
     } finally {
@@ -120,6 +131,7 @@ function mountEnginePanel() {
 
   start.addEventListener("click", () => void command("/start"))
   pass.addEventListener("click", () => void command("/priority"))
+  draw.addEventListener("click", () => void command("/draw"))
   refreshButton.addEventListener("click", () => void refresh({ force: true }))
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") void refresh({ force: true })

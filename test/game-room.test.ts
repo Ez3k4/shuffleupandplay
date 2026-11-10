@@ -442,6 +442,7 @@ describe("GameRoom operations surface", () => {
       "createRoom",
       "deckFailed",
       "deckLoaded",
+      "drawExperimentalCard",
       "experimentalEngineView",
       "join",
       "passExperimentalPriority",

@@ -9,6 +9,7 @@ import {
 } from "solid-objects"
 
 import { MatchLog } from "./match-log.ts"
+import { planExperimentalDraw } from "../engine/authoritative-draw.ts"
 import { createEngineState, applyEngineCommand } from "../engine/reducer.ts"
 import { seedEngineFromTabletop, inspectTabletopBridge } from "../engine/tabletop-bridge.ts"
 import { projectEngineServerView, type EngineServerView } from "../engine/server-view.ts"
@@ -298,6 +299,41 @@ export class GameRoom extends Actor {
   }
 
   /** The ONLY engine response returned to HTTP: always project for the seated viewer. */
+  /** Stage 28D: update Room and engine together; manual Room owns card contents. */
+  drawExperimentalCard(options: { sessionId: string; expectedRoomVersion: number }): "drawn" {
+    const room = this.#requireRoom()
+    const player = this.#requirePlayer({ room, sessionId: options.sessionId })
+    if (!this.experimentalEngine) {
+      this.reject("engineNotStarted", { message: "Start the experimental engine first" })
+    }
+    const plan = planExperimentalDraw({
+      engine: this.experimentalEngine,
+      players: room.players,
+      playerId: player.id,
+    })
+    if (!plan.ok) {
+      if (plan.reason === "library_empty") {
+        this.reject("engineLibraryEmpty", { message: "There are no cards left in your library" })
+      }
+      if (plan.reason === "not_priority_holder") {
+        this.reject("engineIllegalCommand", { message: "You do not have priority" })
+      }
+      this.reject("engineOutOfSync", {
+        message: "Manual tabletop and engine have diverged. Create a new experimental table.",
+      })
+    }
+    // An independently issued retry after a lost response must not draw a
+    // second card from a stale browser snapshot (even with a fresh key).
+    if (room.version !== options.expectedRoomVersion) {
+      this.reject("engineVersionConflict", { message: "Game changed. Refresh the engine panel and try again." })
+    }
+    // Both values are computed and validated before either is assigned. The
+    // actor serializes commands, and its state persists as one transaction.
+    this.experimentalEngine = plan.engine
+    this.#commit({ room: { ...room, players: plan.players } })
+    return "drawn"
+  }
+
   experimentalEngineView(options: { sessionId: string }): EngineServerView {
     const room = this.#requireRoom()
     const player = this.#requirePlayer({ room, sessionId: options.sessionId })

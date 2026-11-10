@@ -400,6 +400,7 @@ export function gamePage(options: {
         <div class="stage28b-engine-actions">
           <button type="button" data-engine-start hidden>Start engine test</button>
           <button type="button" data-engine-pass hidden disabled>Pass priority</button>
+          <button type="button" data-engine-draw hidden disabled>Draw 1 (engine)</button>
           <button type="button" data-engine-refresh>Refresh</button>
         </div>
         <p data-engine-error class="stage28b-engine-error" role="alert" hidden></p>

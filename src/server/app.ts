@@ -87,6 +87,9 @@ const REJECTION_STATUSES: Record<string, number> = {
   engineInvalidDecks: 422,
   engineNotStarted: 409,
   engineIllegalCommand: 422,
+  engineOutOfSync: 409,
+  engineLibraryEmpty: 409,
+  engineVersionConflict: 409,
 }
 
 const STATIC_ROOTS: Record<string, string> = {
@@ -340,7 +343,7 @@ async function route(options: {
   // Stage 28A is an opt-in, JSON-only backend API. Prototype draw/move/stack
   // commands cannot reach this route; only the server-approved priority pass.
   const experimentalMatch =
-    /^\/api\/tables\/([A-Za-z0-9]{1,6})\/engine(?:\/(start|priority))?$/.exec(path)
+    /^\/api\/tables\/([A-Za-z0-9]{1,6})\/engine(?:\/(start|priority|draw))?$/.exec(path)
   if (experimentalMatch) {
     if (!options.experimentalEngineEnabled) {
       return sendJson({ context, status: 404, body: { error: "Not found" } })
@@ -350,7 +353,7 @@ async function route(options: {
     if (method === "GET" && operation === "view") {
       return showExperimentalEngine({ context, runtime, roomCode })
     }
-    if (method === "POST" && (operation === "start" || operation === "priority")) {
+    if (method === "POST" && (operation === "start" || operation === "priority" || operation === "draw")) {
       return commandExperimentalEngine({ context, runtime, roomCode, operation })
     }
     return sendJson({ context, status: 405, body: { error: "Method not allowed" } })
@@ -731,7 +734,7 @@ async function commandExperimentalEngine(options: {
   context: RequestContext
   runtime: SolidObjectsRuntime
   roomCode: string
-  operation: "start" | "priority"
+  operation: "start" | "priority" | "draw"
 }): Promise<void> {
   const { context, runtime, roomCode, operation } = options
   if (!(context.request.headers["content-type"] ?? "").includes("application/json")) {
@@ -744,8 +747,18 @@ async function commandExperimentalEngine(options: {
     return sendJson({ context, status: 403, body: { error: "Origin not allowed" } })
   }
   const body = await readBody(context.request)
-  if (Object.keys(body).length !== 0) {
+  if (operation === "draw") {
+    if (Object.keys(body).length !== 1 || typeof body.expectedRoomVersion !== "number" ||
+        !Number.isSafeInteger(body.expectedRoomVersion) || body.expectedRoomVersion < 1) {
+      return sendJson({ context, status: 400, body: { error: "A valid expectedRoomVersion is required" } })
+    }
+  } else if (Object.keys(body).length !== 0) {
     return sendJson({ context, status: 400, body: { error: "This prototype accepts no command payload" } })
+  }
+  // A retry of the same draw must reuse a valid idempotency key. Keys are
+  // scoped to the caller's signed session by idempotency(context).
+  if (operation === "draw" && !idempotency(context).idempotencyKey) {
+    return sendJson({ context, status: 400, body: { error: "A valid Idempotency-Key header is required" } })
   }
   const ref = runtime.ref(GameRoom, roomCode).with({
     authorizationContext: viewerFor(options),
@@ -753,8 +766,10 @@ async function commandExperimentalEngine(options: {
   })
   if (operation === "start") {
     await ref.startExperimentalEngine({ sessionId: context.sessionId })
-  } else {
+  } else if (operation === "priority") {
     await ref.passExperimentalPriority({ sessionId: context.sessionId })
+  } else {
+    await ref.drawExperimentalCard({ sessionId: context.sessionId, expectedRoomVersion: body.expectedRoomVersion as number })
   }
   const view = await runtime.ref(GameRoom, roomCode)
     .with({ authorizationContext: viewerFor(options) })
