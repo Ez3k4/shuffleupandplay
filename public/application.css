@@ -5777,3 +5777,50 @@ main.layout[data-game] .stage24c-rules-panel a { color: #e9c790; }
   transform: translateY(var(--stage25-hand-lift)) rotate(180deg) scale(1.04);
   clip-path: inset(0 0 0 0 round 7px);
 }
+
+
+/* Stage 28B — opt-in prototype rules panel; disabled on standard tables. */
+.stage28b-engine { position: relative; max-width: min(28rem, 100%); flex: 0 1 auto; align-self: center; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-strong); color: var(--text); font-size: .8rem; }
+.stage28b-engine > summary { list-style: none; cursor: pointer; padding: .55rem .75rem; font-weight: 700; white-space: nowrap; }
+.stage28b-engine > summary::-webkit-details-marker { display: none; }
+.stage28b-engine > summary::after { content: ' ▾'; color: var(--muted); }
+.stage28b-engine[open] > summary::after { content: ' ▴'; }
+.stage28b-engine [data-engine-caption] { font-weight: 400; color: var(--muted); }
+.stage28b-engine-body { padding: .7rem .85rem; width: min(26rem, 82vw); max-width: 100%; border-top: 1px solid var(--line); }
+.stage28b-engine-disclaimer { color: var(--muted); margin: 0 0 .55rem; line-height: 1.35; }
+.stage28b-engine [data-engine-message] { margin: .4rem 0; }
+.stage28b-engine-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .4rem .8rem; margin: .65rem 0; }
+.stage28b-engine-fields strong { display: block; font-size: .9rem; overflow-wrap: anywhere; }
+.stage28b-engine-actions { display: flex; gap: .45rem; flex-wrap: wrap; }
+.stage28b-engine-actions button { font: inherit; color: var(--text); background: rgba(76, 97, 105, .3); border: 1px solid var(--line-strong); border-radius: 8px; padding: .4rem .65rem; cursor: pointer; }
+.stage28b-engine-actions button:hover:not(:disabled) { background: rgba(76, 97, 105, .55); }
+.stage28b-engine-actions button:disabled { opacity: .5; cursor: not-allowed; }
+.stage28b-engine-error { color: #ffb7a5; margin: .5rem 0 0; }
+@media (max-width: 750px) { .stage28b-engine-body { width: min(24rem, 85vw); } }
+main.layout[data-game] > .compact-tabletop-toolbar > .stage28b-engine {
+  grid-column: 4;
+  grid-row: 1;
+  justify-self: end;
+  align-self: start;
+  margin: .23rem .35rem 0 0;
+  z-index: 152;
+}
+.stage28b-engine .stage28b-engine-body {
+  position: absolute;
+  top: calc(100% + .4rem);
+  right: 0;
+  width: min(26rem, calc(100vw - 2rem));
+  background: #172026;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .65);
+}
+@media (max-width: 680px) {
+  main.layout[data-game] > .compact-tabletop-toolbar > .stage28b-engine {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-self: end;
+    margin: .3rem .35rem;
+  }
+}
+.stage28b-engine [hidden] { display: none !important; }

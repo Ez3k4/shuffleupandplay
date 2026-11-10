@@ -19,6 +19,7 @@ const PUBLIC_DIRECTORY = resolve(import.meta.dirname, "../../../public")
 const ASSET_NAMES = [
   "application.css",
   "shuffle.js",
+  "experimental-engine.js",
   // Stage 12 DOM overlay is imported by shuffle.js; stamp it for cache safety.
   "stage12-spells.js",
   // Stage 13 browser imports need fingerprints when the feature is updated.
@@ -322,6 +323,7 @@ export function gamePage(options: {
   roomCode: string
   seat: number
   shareUrl: string
+  experimentalEngineEnabled?: boolean
 }): string {
   const room = options.payload.space
   if (!room) throw new TypeError("a game page needs a projected room")
@@ -380,6 +382,28 @@ export function gamePage(options: {
       </div>
     </details>
     ${componentSlot({ name: "opponentRoster", context })}
+    ${options.experimentalEngineEnabled ? `<details class="stage28b-engine" data-stage28b-engine>
+      <summary>🧪 Engine <span data-engine-caption>Prototype</span></summary>
+      <div class="stage28b-engine-body">
+        <p class="stage28b-engine-disclaimer">Experimental turn/priority tracker only. Manual cards and the engine are currently independent.</p>
+        <p data-engine-message role="status" aria-live="polite">Connecting to experimental engine…</p>
+        <div data-engine-details hidden>
+          <div class="stage28b-engine-fields">
+            <span>Turn <strong data-engine-turn>—</strong></span>
+            <span>Step <strong data-engine-step>—</strong></span>
+            <span>Active player <strong data-engine-active>—</strong></span>
+            <span>Priority <strong data-engine-priority>—</strong></span>
+            <span>Stack <strong data-engine-stack>—</strong></span>
+          </div>
+        </div>
+        <div class="stage28b-engine-actions">
+          <button type="button" data-engine-start hidden>Start engine test</button>
+          <button type="button" data-engine-pass hidden disabled>Pass priority</button>
+          <button type="button" data-engine-refresh>Refresh</button>
+        </div>
+        <p data-engine-error class="stage28b-engine-error" role="alert" hidden></p>
+      </div>
+    </details>` : ""}
     <details class="stage24c-rules" data-stage24c-rules>
       <summary title="Quick Magic turn and rules guide" aria-label="Open quick Magic rules">📖 Rules</summary>
       <section class="stage24c-rules-panel" aria-label="Quick Magic rules">
@@ -420,7 +444,8 @@ export function gamePage(options: {
 
   ${componentSlot({ name: "librarySearch", key: options.seat, context })}
   ${componentSlot({ name: "gameResult", context })}
-</main>`,
+</main>
+${options.experimentalEngineEnabled ? `<script type="module" src="${ASSET_URLS["experimental-engine.js"]}"></script>` : ""}`,
   })
 }
 

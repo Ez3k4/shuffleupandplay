@@ -311,7 +311,8 @@ async function route(options: {
     return sendRedirect({ context, location: `/tables/${path.slice("/spaces/".length)}` })
   }
   if (method === "GET" && path.startsWith("/tables/")) {
-    return showGame({ context, runtime, roomCode: path.slice("/tables/".length) })
+    return showGame({ context, runtime, roomCode: path.slice("/tables/".length),
+      experimentalEngineEnabled: options.experimentalEngineEnabled })
   }
   if (method === "POST" && (path === "/api/tables" || path === "/api/spaces")) {
     if (!allows({ context, limiter: limits.createTable })) return sendTooManyRequests(context)
@@ -505,6 +506,7 @@ async function showGame(options: {
   context: RequestContext
   runtime: SolidObjectsRuntime
   roomCode: string
+  experimentalEngineEnabled: boolean
 }): Promise<void> {
   const { context, runtime } = options
   const roomCode = normalizeRoomCode(options.roomCode)
@@ -525,6 +527,7 @@ async function showGame(options: {
       roomCode,
       seat,
       shareUrl: new URL(`/tables/${roomCode}`, context.url).toString(),
+      experimentalEngineEnabled: options.experimentalEngineEnabled,
     }),
   })
 }

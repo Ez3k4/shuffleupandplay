@@ -43,6 +43,7 @@ await application.install()
 const server = createShuffleServer({
   application,
   secret: "browser-suite-secret-that-is-long-enough",
+  experimentalEngineEnabled: process.env.SHUFFLE_EXPERIMENTAL_ENGINE === "1",
 })
 await server.listen(PORT)
 
