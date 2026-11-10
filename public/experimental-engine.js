@@ -9,21 +9,27 @@ export function engineUiModel(view, viewerId, seat) {
       canPass: false,
       caption: "Not started",
       message: seat === 1 ? "Load both players' decks, then start the engine test." : "Waiting for the host to start the engine test.",
-      turn: "—", step: "—", activePlayer: "—", priority: "—", stack: "—",
+      turn: "—", step: "—", activePlayer: "—", priority: "—", stack: "—", cards: "—",
     }
   }
   const label = (id) => id === viewerId ? "You" : "Opponent"
+  const link = view.bridge
+  const linkText = !link ? "Not linked (older session)" :
+    link.status === "synced" ? `${link.linkedCardCount} cards linked` : "Out of sync — manual cards changed"
   return {
     active: true,
     canStart: false,
     canPass: view.priorityPlayerId === viewerId,
     caption: `Turn ${view.turnNumber}`,
-    message: view.priorityPlayerId === viewerId ? "You have priority." : "Waiting for your opponent to pass priority.",
+    message: link?.status === "out_of_sync" ?
+      "Manual cards have changed since the engine started. This prototype will not synchronize them automatically." :
+      (view.priorityPlayerId === viewerId ? "You have priority." : "Waiting for your opponent to pass priority."),
     turn: String(view.turnNumber),
     step: view.step.replaceAll("_", " "),
     activePlayer: label(view.activePlayerId),
     priority: label(view.priorityPlayerId),
     stack: String(view.stack.length),
+    cards: linkText,
   }
 }
 
@@ -57,7 +63,7 @@ function mountEnginePanel() {
     pass.disabled = pending || !model.canPass
     refreshButton.disabled = pending
     find("details").hidden = !model.active
-    for (const name of ["turn", "step", "active", "priority", "stack"]) {
+    for (const name of ["turn", "step", "active", "priority", "stack", "cards"]) {
       const key = name === "active" ? "activePlayer" : name
       find(name).textContent = model[key]
     }

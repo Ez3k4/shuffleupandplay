@@ -10,7 +10,7 @@ import {
 
 import { MatchLog } from "./match-log.ts"
 import { createEngineState, applyEngineCommand } from "../engine/reducer.ts"
-import { seedEngineLibraries } from "../engine/zones.ts"
+import { seedEngineFromTabletop, inspectTabletopBridge } from "../engine/tabletop-bridge.ts"
 import { projectEngineServerView, type EngineServerView } from "../engine/server-view.ts"
 import type { EngineState } from "../engine/types.ts"
 import { parseAction } from "../game/action.ts"
@@ -264,15 +264,16 @@ export class GameRoom extends Actor {
       this.reject("engineNeedsDecks", { message: "Both players need loaded decks before starting" })
     }
     const engine = createEngineState(first.id, second.id)
-    // Snapshots of the server-trusted imported libraries, not untrusted card
-    // definitions supplied by a browser. No automatic shuffling or initial hand.
+    // The manual Room is authoritative for cards. Link the real card instance
+    // identities and current zones in a READ-ONLY engine snapshot. Engine card
+    // commands remain unavailable through HTTP; later stages must establish
+    // a single card-writing authority before enabling automated actions.
     try {
-      this.experimentalEngine = seedEngineLibraries(engine, [
-        { playerId: first.id, cardDefinitionIds: first.library.map(engineCardDefinitionId) },
-        { playerId: second.id, cardDefinitionIds: second.library.map(engineCardDefinitionId) },
-      ])
+      this.experimentalEngine = seedEngineFromTabletop(engine, [first, second])
     } catch {
-      this.reject("engineInvalidDecks", { message: "The loaded decks are not usable by the prototype" })
+      this.reject("engineInvalidDecks", {
+        message: "Card identities are invalid or unsupported zones are in use (pending spells/commander)",
+      })
     }
     this.#commit({ room })
     return "started"
@@ -300,7 +301,10 @@ export class GameRoom extends Actor {
   experimentalEngineView(options: { sessionId: string }): EngineServerView {
     const room = this.#requireRoom()
     const player = this.#requirePlayer({ room, sessionId: options.sessionId })
-    return projectEngineServerView(this.experimentalEngine, player.id, room.version)
+    const bridge = this.experimentalEngine
+      ? inspectTabletopBridge(this.experimentalEngine, room.players)
+      : undefined
+    return projectEngineServerView(this.experimentalEngine, player.id, room.version, bridge)
   }
 
   requestDeck(options: { deckId: string; sessionId: string }): "requested" {
@@ -509,8 +513,3 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-function engineCardDefinitionId(card: Card): string {
-  const id = typeof card.scryfallId === "string" ? card.scryfallId.trim() : ""
-  if (id) return id
-  return typeof card.name === "string" ? card.name.trim() : ""
-}

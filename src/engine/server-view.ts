@@ -1,3 +1,4 @@
+import type { TabletopBridgeSummary } from "./tabletop-bridge.ts"
 import { projectPlayerZones, type PlayerZoneView } from "./views.ts"
 import type { EngineState, PriorityStep } from "./types.ts"
 
@@ -15,6 +16,8 @@ export type EngineServerView =
       readonly lifeTotals: readonly { readonly playerId: string; readonly life: number }[]
       readonly stack: readonly { readonly id: string; readonly kind: string; readonly controllerId: string }[]
       readonly zones: PlayerZoneView
+      /** Aggregate read-only link status; never includes private card IDs. */
+      readonly bridge?: TabletopBridgeSummary
     }
 
 /** Never pass raw engine state, internal events, or stack effects to HTTP clients. */
@@ -22,6 +25,7 @@ export function projectEngineServerView(
   state: EngineState | null | undefined,
   viewerId: string,
   roomVersion: number,
+  bridge?: TabletopBridgeSummary,
 ): EngineServerView {
   if (!state) return { status: "inactive", roomVersion }
   if (!state.playerIds.includes(viewerId)) throw new Error("Unknown engine viewer")
@@ -41,5 +45,6 @@ export function projectEngineServerView(
     // Effects and descriptions are intentionally withheld for the first server adapter.
     stack: state.stack.map(({ id, kind, controllerId }) => ({ id, kind, controllerId })),
     zones: projectPlayerZones(state, viewerId),
+    ...(bridge ? { bridge } : {}),
   }
 }

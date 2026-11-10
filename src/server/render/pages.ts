@@ -385,7 +385,7 @@ export function gamePage(options: {
     ${options.experimentalEngineEnabled ? `<details class="stage28b-engine" data-stage28b-engine>
       <summary>🧪 Engine <span data-engine-caption>Prototype</span></summary>
       <div class="stage28b-engine-body">
-        <p class="stage28b-engine-disclaimer">Experimental turn/priority tracker only. Manual cards and the engine are currently independent.</p>
+        <p class="stage28b-engine-disclaimer">Experimental turn/priority tracker. The engine reads real card IDs, but the manual tabletop remains in control of cards.</p>
         <p data-engine-message role="status" aria-live="polite">Connecting to experimental engine…</p>
         <div data-engine-details hidden>
           <div class="stage28b-engine-fields">
@@ -394,6 +394,7 @@ export function gamePage(options: {
             <span>Active player <strong data-engine-active>—</strong></span>
             <span>Priority <strong data-engine-priority>—</strong></span>
             <span>Stack <strong data-engine-stack>—</strong></span>
+            <span>Card link <strong data-engine-cards>—</strong></span>
           </div>
         </div>
         <div class="stage28b-engine-actions">
