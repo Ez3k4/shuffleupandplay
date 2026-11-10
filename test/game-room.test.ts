@@ -446,6 +446,7 @@ describe("GameRoom operations surface", () => {
       "experimentalEngineView",
       "join",
       "passExperimentalPriority",
+      "playExperimentalLand",
       "reconcile",
       "requestDeck",
       "startExperimentalEngine",

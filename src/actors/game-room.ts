@@ -10,6 +10,7 @@ import {
 
 import { MatchLog } from "./match-log.ts"
 import { planExperimentalDraw } from "../engine/authoritative-draw.ts"
+import { planExperimentalLandPlay, landAllowance, isLandCard } from "../engine/authoritative-land.ts"
 import { createEngineState, applyEngineCommand } from "../engine/reducer.ts"
 import { seedEngineFromTabletop, inspectTabletopBridge } from "../engine/tabletop-bridge.ts"
 import { projectEngineServerView, type EngineServerView } from "../engine/server-view.ts"
@@ -334,13 +335,60 @@ export class GameRoom extends Actor {
     return "drawn"
   }
 
+  /** Stage 28E: move a land from hand to battlefield in a single actor transaction. */
+  playExperimentalLand(options: {
+    sessionId: string
+    expectedRoomVersion: number
+    instanceId: string
+  }): "played" {
+    const room = this.#requireRoom()
+    const player = this.#requirePlayer({ room, sessionId: options.sessionId })
+    if (!this.experimentalEngine) {
+      this.reject("engineNotStarted", { message: "Start the experimental engine first" })
+    }
+    if (room.version !== options.expectedRoomVersion) {
+      this.reject("engineVersionConflict", { message: "Game changed. Refresh and try again." })
+    }
+    const plan = planExperimentalLandPlay({
+      engine: this.experimentalEngine,
+      players: room.players,
+      playerId: player.id,
+      instanceId: options.instanceId,
+    })
+    if (!plan.ok) {
+      if (plan.reason === "out_of_sync") {
+        this.reject("engineOutOfSync", { message: "Manual cards and engine disagree. Start a new test table." })
+      }
+      if (plan.reason === "land_limit") {
+        this.reject("engineLandLimit", { message: "You already played a land this turn." })
+      }
+      this.reject("engineLandIllegal", { message: `Cannot play this land: ${plan.reason}` })
+    }
+    // No separate action or second card move. Both values persist in this
+    // one serialized GameRoom method, advancing the room version exactly once.
+    this.experimentalEngine = plan.engine
+    this.#commit({ room: { ...room, players: plan.players } })
+    return "played"
+  }
+
   experimentalEngineView(options: { sessionId: string }): EngineServerView {
     const room = this.#requireRoom()
     const player = this.#requirePlayer({ room, sessionId: options.sessionId })
     const bridge = this.experimentalEngine
       ? inspectTabletopBridge(this.experimentalEngine, room.players)
       : undefined
-    return projectEngineServerView(this.experimentalEngine, player.id, room.version, bridge)
+    const view = projectEngineServerView(this.experimentalEngine, player.id, room.version, bridge)
+    if (!this.experimentalEngine || view.status !== "active") return view
+    // Project only this player's own hand metadata; opponents get no card names.
+    const ownLandOptions = player.hand.filter(isLandCard).map((card) => ({
+      instanceId: card.instanceId, name: card.name,
+    }))
+    const enhancedView = {
+      ...view,
+      playableLands: ownLandOptions,
+      landPlaysRemaining: landAllowance(this.experimentalEngine, player.id),
+    }
+    return enhancedView
   }
 
   requestDeck(options: { deckId: string; sessionId: string }): "requested" {

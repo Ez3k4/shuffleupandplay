@@ -90,6 +90,8 @@ const REJECTION_STATUSES: Record<string, number> = {
   engineOutOfSync: 409,
   engineLibraryEmpty: 409,
   engineVersionConflict: 409,
+  engineLandLimit: 409,
+  engineLandIllegal: 422,
 }
 
 const STATIC_ROOTS: Record<string, string> = {
@@ -343,7 +345,7 @@ async function route(options: {
   // Stage 28A is an opt-in, JSON-only backend API. Prototype draw/move/stack
   // commands cannot reach this route; only the server-approved priority pass.
   const experimentalMatch =
-    /^\/api\/tables\/([A-Za-z0-9]{1,6})\/engine(?:\/(start|priority|draw))?$/.exec(path)
+    /^\/api\/tables\/([A-Za-z0-9]{1,6})\/engine(?:\/(start|priority|draw|land))?$/.exec(path)
   if (experimentalMatch) {
     if (!options.experimentalEngineEnabled) {
       return sendJson({ context, status: 404, body: { error: "Not found" } })
@@ -353,7 +355,7 @@ async function route(options: {
     if (method === "GET" && operation === "view") {
       return showExperimentalEngine({ context, runtime, roomCode })
     }
-    if (method === "POST" && (operation === "start" || operation === "priority" || operation === "draw")) {
+    if (method === "POST" && (operation === "start" || operation === "priority" || operation === "draw" || operation === "land")) {
       return commandExperimentalEngine({ context, runtime, roomCode, operation })
     }
     return sendJson({ context, status: 405, body: { error: "Method not allowed" } })
@@ -734,7 +736,7 @@ async function commandExperimentalEngine(options: {
   context: RequestContext
   runtime: SolidObjectsRuntime
   roomCode: string
-  operation: "start" | "priority" | "draw"
+  operation: "start" | "priority" | "draw" | "land"
 }): Promise<void> {
   const { context, runtime, roomCode, operation } = options
   if (!(context.request.headers["content-type"] ?? "").includes("application/json")) {
@@ -747,7 +749,15 @@ async function commandExperimentalEngine(options: {
     return sendJson({ context, status: 403, body: { error: "Origin not allowed" } })
   }
   const body = await readBody(context.request)
-  if (operation === "draw") {
+  if (operation === "land") {
+    if (Object.keys(body).length !== 2 || typeof body.instanceId !== "string" ||
+        body.instanceId.length === 0 || body.instanceId.length > 128 ||
+        /[\u0000-\u001F\u007F]/u.test(body.instanceId) ||
+        typeof body.expectedRoomVersion !== "number" ||
+        !Number.isSafeInteger(body.expectedRoomVersion) || body.expectedRoomVersion < 1) {
+      return sendJson({ context, status: 400, body: { error: "Valid instanceId and expectedRoomVersion are required" } })
+    }
+  } else if (operation === "draw") {
     if (Object.keys(body).length !== 1 || typeof body.expectedRoomVersion !== "number" ||
         !Number.isSafeInteger(body.expectedRoomVersion) || body.expectedRoomVersion < 1) {
       return sendJson({ context, status: 400, body: { error: "A valid expectedRoomVersion is required" } })
@@ -757,7 +767,7 @@ async function commandExperimentalEngine(options: {
   }
   // A retry of the same draw must reuse a valid idempotency key. Keys are
   // scoped to the caller's signed session by idempotency(context).
-  if (operation === "draw" && !idempotency(context).idempotencyKey) {
+  if ((operation === "draw" || operation === "land") && !idempotency(context).idempotencyKey) {
     return sendJson({ context, status: 400, body: { error: "A valid Idempotency-Key header is required" } })
   }
   const ref = runtime.ref(GameRoom, roomCode).with({
@@ -768,8 +778,14 @@ async function commandExperimentalEngine(options: {
     await ref.startExperimentalEngine({ sessionId: context.sessionId })
   } else if (operation === "priority") {
     await ref.passExperimentalPriority({ sessionId: context.sessionId })
-  } else {
+  } else if (operation === "draw") {
     await ref.drawExperimentalCard({ sessionId: context.sessionId, expectedRoomVersion: body.expectedRoomVersion as number })
+  } else {
+    await ref.playExperimentalLand({
+      sessionId: context.sessionId,
+      expectedRoomVersion: body.expectedRoomVersion as number,
+      instanceId: body.instanceId as string,
+    })
   }
   const view = await runtime.ref(GameRoom, roomCode)
     .with({ authorizationContext: viewerFor(options) })
