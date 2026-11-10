@@ -1,7 +1,8 @@
 /**
- * Stage 27A is an isolated two-player turn/priority prototype.
- * It does not yet implement draw/untap actions, combat choices, triggers,
- * state-based actions, casting, or effects. It is not wired to GameRoom.
+ * Isolated two-player Magic engine prototype.
+ *
+ * Stage 27B adds a typed stack and deterministic prototype announcement command.
+ * It does NOT validate casting legality, charge mana, or execute card effects.
  */
 export const PRIORITY_STEPS = [
   "upkeep",
@@ -18,9 +19,13 @@ export const PRIORITY_STEPS = [
 
 export type PriorityStep = (typeof PRIORITY_STEPS)[number]
 
-/** Placeholder entry to exercise stack ordering; effects are not executed yet. */
+/** These are stack-entry categories, not implemented rules for casting/triggering. */
+export type StackObjectKind = "spell" | "activated_ability" | "triggered_ability"
+
+/** Objects on the prototype stack; identifiers are allocated by the reducer. */
 export interface StackObject {
   readonly id: string
+  readonly kind: StackObjectKind
   readonly controllerId: string
   readonly description: string
 }
@@ -34,13 +39,31 @@ export interface EngineState {
   readonly step: PriorityStep
   readonly consecutivePasses: number
   readonly stack: readonly StackObject[]
+  /** Monotonic counter persists with the game state; no random IDs. */
+  readonly nextStackObjectNumber: number
 }
 
+/**
+ * Events describe the accepted transition. State is authoritative; events are
+ * for tests, future animations and logging, not an event-sourced database.
+ */
 export type EngineEvent =
   | { readonly type: "priority_passed"; readonly playerId: string }
   | { readonly type: "priority_granted"; readonly playerId: string }
-  | { readonly type: "step_started"; readonly step: PriorityStep; readonly turnNumber: number; readonly activePlayerId: string }
+  | {
+      readonly type: "step_started"
+      readonly step: PriorityStep
+      readonly turnNumber: number
+      readonly activePlayerId: string
+    }
+  | { readonly type: "stack_object_added"; readonly object: StackObject }
   | { readonly type: "stack_object_popped"; readonly object: StackObject }
+  | { readonly type: "stack_effect_not_implemented"; readonly objectId: string }
+
+export type EngineRejectionReason =
+  | "unknown_player"
+  | "not_priority_holder"
+  | "invalid_stack_object"
 
 export type TransitionResult =
   | {
@@ -50,7 +73,7 @@ export type TransitionResult =
     }
   | {
       readonly accepted: false
-      readonly reason: "unknown_player" | "not_priority_holder"
+      readonly reason: EngineRejectionReason
       readonly state: EngineState
       readonly events: readonly []
     }

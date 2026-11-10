@@ -28,6 +28,7 @@ describe("isolated Stage 27A engine", () => {
       step: "upkeep",
       consecutivePasses: 0,
       stack: [],
+      nextStackObjectNumber: 1,
     })
   })
 
@@ -94,8 +95,8 @@ describe("isolated Stage 27A engine", () => {
   })
 
   test("pops the top placeholder in LIFO order after two passes", () => {
-    const first: StackObject = { id: "one", controllerId: "alice", description: "first" }
-    const second: StackObject = { id: "two", controllerId: "bob", description: "second" }
+    const first: StackObject = { id: "one", controllerId: "alice", description: "first", kind: "spell" }
+    const second: StackObject = { id: "two", controllerId: "bob", description: "second", kind: "activated_ability" }
     const state: EngineState = {
       ...createEngineState("alice", "bob"),
       stack: [first, second],
@@ -113,7 +114,7 @@ describe("isolated Stage 27A engine", () => {
   })
 
   test("reports stack-pop and new priority as explicit events", () => {
-    const object: StackObject = { id: "spell-1", controllerId: "alice", description: "test" }
+    const object: StackObject = { id: "spell-1", controllerId: "alice", description: "test", kind: "spell" }
     const state: EngineState = { ...createEngineState("alice", "bob"), stack: [object] }
     const first = pass(state, "alice")
     if (!first.accepted) throw new Error("First priority pass rejected")

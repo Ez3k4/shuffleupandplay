@@ -1,5 +1,6 @@
 import type { EngineCommand } from "./commands.ts"
 import { passPriority } from "./priority.ts"
+import { announcePrototypeStackObject } from "./stack.ts"
 import type { EngineState, TransitionResult } from "./types.ts"
 
 /** Create a deterministic initial state without network, database or random IDs. */
@@ -22,12 +23,14 @@ export function createEngineState(playerOneId: string, playerTwoId: string): Eng
     step: "upkeep",
     consecutivePasses: 0,
     stack: [],
+    nextStackObjectNumber: 1,
   }
 }
 
 /**
- * Call only with an authenticated player ID once wired to GameRoom.
- * This module intentionally does not persist data or communicate with clients.
+ * Pure command entrypoint: state in, accepted/rejected transition out.
+ * When wired into GameRoom, playerId MUST come from the authenticated seat.
+ * Do not expose prototype commands via HTTP until real legality checks exist.
  */
 export function applyEngineCommand(
   state: EngineState,
@@ -37,5 +40,7 @@ export function applyEngineCommand(
   switch (command.type) {
     case "PASS_PRIORITY":
       return passPriority(state, playerId)
+    case "PROTOTYPE_ANNOUNCE_STACK_OBJECT":
+      return announcePrototypeStackObject(state, playerId, command)
   }
 }
