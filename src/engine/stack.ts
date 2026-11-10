@@ -1,15 +1,14 @@
 import type { EngineCommand } from "./commands.ts"
+import { isValidPrototypeEffect } from "./effects.ts"
 import { priorityActorError } from "./guards.ts"
 import type { EngineState, StackObject, TransitionResult } from "./types.ts"
 
 type Announcement = Extract<EngineCommand, { readonly type: "PROTOTYPE_ANNOUNCE_STACK_OBJECT" }>
 
 /**
- * Add a synthetic stack object for exercising priority and response ordering.
- *
- * This operation is *not* a CAST_SPELL or ACTIVATE_ABILITY implementation:
- * it checks neither game rules nor costs, legal targets, source ownership, etc.
- * Never expose it to real game clients as an unrestricted action.
+ * Insert a synthetic object for testing priority and effect execution.
+ * NOT legal spell casting or real ability activation: no costs, targets,
+ * ownership, timings, permissions or replacement effects are implemented.
  */
 export function announcePrototypeStackObject(
   state: EngineState,
@@ -21,8 +20,6 @@ export function announcePrototypeStackObject(
     return { accepted: false, reason: actorError, state, events: [] }
   }
 
-  // Commands may eventually originate as untrusted JSON, so check at runtime
-  // instead of trusting TypeScript's compile-time union alone.
   if (
     (command.kind !== "spell" && command.kind !== "activated_ability") ||
     typeof command.description !== "string" ||
@@ -32,12 +29,24 @@ export function announcePrototypeStackObject(
   ) {
     return { accepted: false, reason: "invalid_stack_object", state, events: [] }
   }
+  if (command.effect !== undefined && !isValidPrototypeEffect(command.effect, state.playerIds)) {
+    return { accepted: false, reason: "invalid_effect", state, events: [] }
+  }
 
+  // Reconstruct the validated effect to prevent retaining caller-controlled
+  // references or unexpected properties in persistent authoritative state.
   const object: StackObject = {
     id: `stack-${state.nextStackObjectNumber}`,
     kind: command.kind,
-    controllerId: playerId, // Never trust a client-supplied controller.
+    controllerId: playerId,
     description: command.description.trim(),
+    ...(command.effect === undefined ? {} : {
+      effect: {
+        type: command.effect.type,
+        playerId: command.effect.playerId,
+        delta: command.effect.delta,
+      },
+    }),
   }
   return {
     accepted: true,
@@ -46,7 +55,7 @@ export function announcePrototypeStackObject(
       stack: [...state.stack, object],
       nextStackObjectNumber: state.nextStackObjectNumber + 1,
       priorityPlayerId: playerId,
-      consecutivePasses: 0, // A new action breaks a pending sequence of passes.
+      consecutivePasses: 0,
     },
     events: [
       { type: "stack_object_added", object },

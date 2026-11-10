@@ -22,6 +22,7 @@ describe("isolated Stage 27A engine", () => {
   test("starts a two-player game at the upkeep priority window", () => {
     expect(createEngineState("alice", "bob")).toEqual({
       playerIds: ["alice", "bob"],
+      lifeTotals: [20, 20],
       activePlayerId: "alice",
       priorityPlayerId: "alice",
       turnNumber: 1,

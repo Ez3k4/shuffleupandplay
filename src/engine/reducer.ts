@@ -17,6 +17,7 @@ export function createEngineState(playerOneId: string, playerTwoId: string): Eng
 
   return {
     playerIds: [playerOneId, playerTwoId],
+    lifeTotals: [20, 20],
     activePlayerId: playerOneId,
     priorityPlayerId: playerOneId,
     turnNumber: 1,
