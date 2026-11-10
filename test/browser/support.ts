@@ -14,7 +14,7 @@ export type ServerPlayer = {
   battlefield: {
     instanceId: string
     tapped: boolean
-    counters: { id: string; x: number; y: number }[]
+    counters: { id: string; label: string; value: number; x: number; y: number }[]
   }[]
 }
 

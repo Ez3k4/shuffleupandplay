@@ -115,8 +115,10 @@ describe("counter tokens", () => {
       await alice.fetch(`/tables/${code}`, { headers: { accept: "text/html" } })
     ).text()
 
+    // Since Stage 18, adding counters happens through the card's counter menu.
+    expect(html).toContain('class="stage18-counter-menu"')
+    expect(html).toContain('aria-label="Add +1/+1 counter"')
     expect(html).toContain("addCounter")
-    expect(html).toMatch(/aria-label="Add a counter to [^"]+"/)
     expect(html).toContain(instanceId)
   })
 
@@ -133,7 +135,7 @@ describe("counter tokens", () => {
     expect(state.space?.players[0]?.battlefield[0]?.counters).toHaveLength(1)
   })
 
-  test("names every card tool for a screen reader instead of an emoji", async () => {
+  test("names every zone-movement card tool for a screen reader", async () => {
     const alice = server.client()
     const { code } = await tableWithBattlefieldCard(alice)
 
@@ -145,12 +147,16 @@ describe("counter tokens", () => {
       expect(html).toContain(label)
     }
 
-    const emojiButtons = html.match(/<button[^>]*class="card-tool"[^>]*>/g) ?? []
-    expect(emojiButtons.length).toBeGreaterThan(0)
-    expect(emojiButtons.every((button) => button.includes("aria-label="))).toBe(true)
+    // Stage 18 zone tools have multiple CSS classes; the old exact-class
+    // matcher missed every button. The attachment tool is a separate control.
+    const zoneTools = (html.match(/<button\b[^>]*>/g) ?? []).filter((button) =>
+      /class="[^"]*\bcard-tool\b[^"]*"/.test(button) && /\bstage18-zone-/.test(button),
+    )
+    expect(zoneTools.length).toBe(4)
+    expect(zoneTools.every((button) => button.includes("aria-label="))).toBe(true)
   })
 
-  test("labels each tool for an instant tooltip rather than the slow browser one", async () => {
+  test("labels zone-movement tools for instant tooltips rather than browser titles", async () => {
     const alice = server.client()
     const { code } = await tableWithBattlefieldCard(alice)
 
@@ -158,8 +164,10 @@ describe("counter tokens", () => {
       await alice.fetch(`/tables/${code}`, { headers: { accept: "text/html" } })
     ).text()
 
-    const tools = html.match(/<button[^>]*class="card-tool"[^>]*>/g) ?? []
-    expect(tools.length).toBeGreaterThan(0)
+    const tools = (html.match(/<button\b[^>]*>/g) ?? []).filter((button) =>
+      /class="[^"]*\bcard-tool\b[^"]*"/.test(button) && /\bstage18-zone-/.test(button),
+    )
+    expect(tools.length).toBe(4)
     expect(tools.every((tool) => tool.includes("data-tooltip="))).toBe(true)
     expect(tools.some((tool) => tool.includes("title="))).toBe(false)
   })
@@ -174,7 +182,8 @@ describe("waiting for an opponent", () => {
       await alice.fetch(`/tables/${code}`, { headers: { accept: "text/html" } })
     ).text()
 
-    expect(html).toContain("Waiting for your opponent")
+    expect(html).toContain("Waiting for players")
+    expect(html).toContain("1 of 2 players connected")
   })
 
   test("drops the waiting panel once the opponent takes a seat", async () => {
@@ -187,7 +196,7 @@ describe("waiting for an opponent", () => {
       await alice.fetch(`/tables/${code}`, { headers: { accept: "text/html" } })
     ).text()
 
-    expect(html).not.toContain("Waiting for your opponent")
+    expect(html).not.toContain("Waiting for players")
   })
 
   test("refreshes the waiting panel as a component so it can disappear live", async () => {

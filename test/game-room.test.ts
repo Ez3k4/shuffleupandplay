@@ -160,9 +160,12 @@ describe("GameRoom observables", () => {
 
     const event = await subscriptionSnapshot("ABC129", "session-1")
 
-    expect(event.invalidations).toEqual(["seatOne", "seatTwo"])
-    expect(event.observables).not.toHaveProperty("seatOne")
-    expect(event.observables).not.toHaveProperty("seatTwo")
+    // Every supported seat is a dependency, even when only seat one is occupied.
+    // The broadcast must not include the underlying private seat values.
+    for (const seat of ["seatOne", "seatTwo", "seatThree", "seatFour"]) {
+      expect(event.invalidations).toContain(seat)
+      expect(event.observables).not.toHaveProperty(seat)
+    }
   })
 
   test("keeps card identity out of every observable", async () => {
@@ -439,20 +442,24 @@ describe("GameRoom operations surface", () => {
       "createRoom",
       "deckFailed",
       "deckLoaded",
+      "experimentalEngineView",
       "join",
+      "passExperimentalPriority",
       "reconcile",
       "requestDeck",
+      "startExperimentalEngine",
       "sweepIdleState",
     ])
   })
 
-  test("keeps helper state out of the persisted fields", async () => {
+  test("persists only approved room and experimental-engine fields", async () => {
     const reference = await createdRoom({ code: "ABC141", sessionId: "session-1" })
     const snapshot = await reference.snapshot({
       authorizationContext: viewer("session-1", "ABC141"),
     })
 
-    expect(Object.keys(snapshot).sort()).toEqual(["playerCount", "room", "roomName"])
+    expect(Object.keys(snapshot).sort()).toEqual(["experimentalEngine", "playerCount", "room", "roomName"])
+    expect(snapshot.experimentalEngine).toBeNull()
   })
 })
 
