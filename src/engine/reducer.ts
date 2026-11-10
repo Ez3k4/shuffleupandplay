@@ -1,6 +1,7 @@
 import type { EngineCommand } from "./commands.ts"
 import { passPriority } from "./priority.ts"
 import { announcePrototypeStackObject } from "./stack.ts"
+import { drawPrototypeCard, movePrototypeCard } from "./zones.ts"
 import type { EngineState, TransitionResult } from "./types.ts"
 
 /** Create a deterministic initial state without network, database or random IDs. */
@@ -18,6 +19,8 @@ export function createEngineState(playerOneId: string, playerTwoId: string): Eng
   return {
     playerIds: [playerOneId, playerTwoId],
     lifeTotals: [20, 20],
+    cards: [],
+    nextCardInstanceNumber: 1,
     activePlayerId: playerOneId,
     priorityPlayerId: playerOneId,
     turnNumber: 1,
@@ -39,6 +42,10 @@ export function applyEngineCommand(
   command: EngineCommand,
 ): TransitionResult {
   switch (command.type) {
+    case "PROTOTYPE_DRAW_CARD":
+      return drawPrototypeCard(state, playerId, command)
+    case "PROTOTYPE_MOVE_CARD":
+      return movePrototypeCard(state, playerId, command)
     case "PASS_PRIORITY":
       return passPriority(state, playerId)
     case "PROTOTYPE_ANNOUNCE_STACK_OBJECT":

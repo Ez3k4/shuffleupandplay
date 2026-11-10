@@ -23,6 +23,8 @@ describe("isolated Stage 27A engine", () => {
     expect(createEngineState("alice", "bob")).toEqual({
       playerIds: ["alice", "bob"],
       lifeTotals: [20, 20],
+      cards: [],
+      nextCardInstanceNumber: 1,
       activePlayerId: "alice",
       priorityPlayerId: "alice",
       turnNumber: 1,

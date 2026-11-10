@@ -1,7 +1,7 @@
 /**
  * Isolated two-player Magic engine prototype.
  *
- * Stage 27C adds a deterministic life-total effect. This is NOT a complete
+ * Stage 27D adds card objects and zones to the deterministic prototype. This is NOT a complete
  * implementation of damage, targeting, costs, casting or game-loss rules.
  */
 export const PRIORITY_STEPS = [
@@ -41,11 +41,27 @@ export interface StackObject {
   readonly effect?: PrototypeEffect
 }
 
+export type CardZone = "library" | "hand" | "battlefield" | "graveyard" | "exile"
+
+/** One physical/virtual card instance in the game. Metadata lives elsewhere. */
+export interface CardInstance {
+  readonly instanceId: string
+  readonly definitionId: string
+  readonly ownerId: string
+  readonly controllerId: string
+  readonly zone: CardZone
+  /** Personal zones belong to a player; battlefield/exile are shared zones. */
+  readonly zoneOwnerId: string | null
+}
+
 export interface EngineState {
   /** Exactly two participants, stored in seat/turn order. */
   readonly playerIds: readonly [string, string]
   /** Indexed by playerIds, NOT keyed by arbitrary client-controlled strings. */
   readonly lifeTotals: readonly [number, number]
+  /** Ordered by seeded library order; each player's first library entry is top. */
+  readonly cards: readonly CardInstance[]
+  readonly nextCardInstanceNumber: number
   readonly activePlayerId: string
   readonly priorityPlayerId: string
   readonly turnNumber: number
@@ -78,12 +94,17 @@ export type EngineEvent =
       readonly delta: number
     }
   | { readonly type: "stack_effect_resolved"; readonly objectId: string; readonly effectType: "CHANGE_LIFE" }
+  | { readonly type: "card_drawn"; readonly playerId: string }
+  /** Internal-only event; future network adapter must redact per viewer. */
+  | { readonly type: "prototype_card_moved"; readonly instanceId: string; readonly fromZone: CardZone; readonly toZone: CardZone }
 
 export type EngineRejectionReason =
   | "unknown_player"
   | "not_priority_holder"
   | "invalid_stack_object"
   | "invalid_effect"
+  | "library_empty"
+  | "invalid_zone_move"
 
 export type TransitionResult =
   | {

@@ -9,6 +9,10 @@ import type { PrototypeEffect } from "./types.ts"
  */
 export type EngineCommand =
   | { readonly type: "PASS_PRIORITY" }
+  /** Test-only draw. Not tied to draw steps or actual Magic rules. */
+  | { readonly type: "PROTOTYPE_DRAW_CARD" }
+  /** Test-only move. Does not pay casting costs or validate legal plays. */
+  | { readonly type: "PROTOTYPE_MOVE_CARD"; readonly instanceId: string; readonly toZone: "hand" | "battlefield" | "graveyard" | "exile" }
   | {
       readonly type: "PROTOTYPE_ANNOUNCE_STACK_OBJECT"
       readonly kind: "spell" | "activated_ability"
